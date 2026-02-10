@@ -22,7 +22,7 @@ export interface Transaction {
 
 export interface Investment {
   id: number;
-  type: "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL";
+  type: "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL" | "CAIXINHA_NUBANK" | "CAIXINHA_TURBO_NUBANK";
   ticker: string;
   name: string;
   quantity: number;

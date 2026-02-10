@@ -65,7 +65,7 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
                 data["current_value"] = qty * q["price"]
-        elif inv.type == InvestmentType.RENDA_FIXA:
+        elif inv.type in (InvestmentType.RENDA_FIXA, InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK):
             rates = await get_selic_cdi_rates(db)
             annual_rate = 0
             if inv.rate_type == "SELIC":

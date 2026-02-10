@@ -6,17 +6,35 @@ import { formatCurrency, formatPercent } from "../utils/format";
 import type { InvestmentSummary } from "../types";
 import toast from "react-hot-toast";
 
-const TYPE_LABELS: Record<string, string> = { CRYPTO: "Criptomoedas", FII: "FIIs", RENDA_FIXA: "Renda Fixa", ACAO_BR: "Ações BR", ACAO_GLOBAL: "Ações Global" };
-const TYPE_COLORS: Record<string, string> = { CRYPTO: "#F59E0B", FII: "#6C63FF", RENDA_FIXA: "#10B981", ACAO_BR: "#3B82F6", ACAO_GLOBAL: "#EC4899" };
+const TYPE_LABELS: Record<string, string> = { 
+  CRYPTO: "Criptomoedas", 
+  FII: "FIIs", 
+  RENDA_FIXA: "Renda Fixa", 
+  ACAO_BR: "Ações BR", 
+  ACAO_GLOBAL: "Ações Global",
+  CAIXINHA_NUBANK: "Caixinha Nubank",
+  CAIXINHA_TURBO_NUBANK: "Caixinha Turbo"
+};
+const TYPE_COLORS: Record<string, string> = { 
+  CRYPTO: "#F59E0B", 
+  FII: "#6C63FF", 
+  RENDA_FIXA: "#10B981", 
+  ACAO_BR: "#3B82F6", 
+  ACAO_GLOBAL: "#EC4899",
+  CAIXINHA_NUBANK: "#820AD1",
+  CAIXINHA_TURBO_NUBANK: "#FF5733"
+};
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   CRYPTO: <Bitcoin className="w-5 h-5" />,
   FII: <Building2 className="w-5 h-5" />,
   RENDA_FIXA: <Landmark className="w-5 h-5" />,
   ACAO_BR: <BarChart3 className="w-5 h-5" />,
   ACAO_GLOBAL: <Globe className="w-5 h-5" />,
+  CAIXINHA_NUBANK: <Landmark className="w-5 h-5" />,
+  CAIXINHA_TURBO_NUBANK: <TrendingUp className="w-5 h-5" />
 };
 
-type Tab = "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL";
+type Tab = "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL" | "CAIXINHA_NUBANK" | "CAIXINHA_TURBO_NUBANK";
 
 export default function InvestmentsPage() {
   const [summary, setSummary] = useState<InvestmentSummary | null>(null);
@@ -56,12 +74,13 @@ export default function InvestmentsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const isCaixinha = form.type === "CAIXINHA_NUBANK" || form.type === "CAIXINHA_TURBO_NUBANK";
       await api.post("/investments", {
         type: form.type,
-        ticker: form.ticker.toUpperCase(),
-        name: form.name,
+        ticker: isCaixinha ? (form.type === "CAIXINHA_NUBANK" ? "CAIXINHA" : "CAIXINHA_TURBO") : form.ticker.toUpperCase(),
+        name: isCaixinha ? TYPE_LABELS[form.type] : form.name,
         quantity: parseFloat(form.quantity),
-        avg_price: parseFloat(form.avg_price),
+        avg_price: isCaixinha ? 1 : parseFloat(form.avg_price),
         purchase_date: form.purchase_date || null,
         rate_type: form.rate_type || null,
         rate_value: form.rate_value ? parseFloat(form.rate_value) : null,
@@ -184,7 +203,7 @@ export default function InvestmentsPage() {
         <div className="lg:col-span-3 bg-primary-light rounded-2xl border border-border overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-border overflow-x-auto">
-            {(["CRYPTO", "FII", "RENDA_FIXA", "ACAO_BR", "ACAO_GLOBAL"] as Tab[]).map((t) => (
+            {(["CRYPTO", "FII", "RENDA_FIXA", "ACAO_BR", "ACAO_GLOBAL", "CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -290,19 +309,30 @@ export default function InvestmentsPage() {
               <option value="RENDA_FIXA">Renda Fixa</option>
               <option value="ACAO_BR">Ação Brasileira</option>
               <option value="ACAO_GLOBAL">Ação Global</option>
+              <option value="CAIXINHA_NUBANK">Caixinha Nubank</option>
+              <option value="CAIXINHA_TURBO_NUBANK">Caixinha Turbo</option>
             </select>
 
-            <input type="text" placeholder={form.type === "CRYPTO" ? "Ticker (ex: BTC)" : form.type === "FII" ? "Ticker (ex: HGLG11)" : form.type === "ACAO_BR" ? "Ticker (ex: PETR4)" : form.type === "ACAO_GLOBAL" ? "Ticker (ex: AAPL34)" : "Nome do título"} value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-            <input type="text" placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+            {!["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) && (
+              <>
+                <input type="text" placeholder={form.type === "CRYPTO" ? "Ticker (ex: BTC)" : form.type === "FII" ? "Ticker (ex: HGLG11)" : form.type === "ACAO_BR" ? "Ticker (ex: PETR4)" : form.type === "ACAO_GLOBAL" ? "Ticker (ex: AAPL34)" : "Nome do título"} value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                <input type="text" placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+              </>
+            )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <input type="number" step="any" placeholder="Quantidade" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-              <input type="number" step="0.01" placeholder="Preço médio (R$)" value={form.avg_price} onChange={(e) => setForm({ ...form, avg_price: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+            <div className={`grid ${["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+              <input type="number" step="any" placeholder={["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? "Quantidade em R$" : "Quantidade"} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+              {!["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) && (
+                <input type="number" step="0.01" placeholder="Preço médio (R$)" value={form.avg_price} onChange={(e) => setForm({ ...form, avg_price: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+              )}
             </div>
 
-            <input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+            <div className="space-y-1">
+              <label className="text-xs text-muted ml-1">Data de Aplicação</label>
+              <input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
 
-            {form.type === "RENDA_FIXA" && (
+            {(form.type === "RENDA_FIXA" || form.type === "CAIXINHA_NUBANK" || form.type === "CAIXINHA_TURBO_NUBANK") && (
               <>
                 <select value={form.rate_type} onChange={(e) => setForm({ ...form, rate_type: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer">
                   <option value="">Tipo de taxa</option>
@@ -312,10 +342,12 @@ export default function InvestmentsPage() {
                   <option value="IPCA+">IPCA+</option>
                 </select>
                 <input type="number" step="0.01" placeholder="Taxa (ex: 100 para 100% CDI)" value={form.rate_value} onChange={(e) => setForm({ ...form, rate_value: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-                <div>
-                  <label className="text-xs text-muted mb-1 block">Vencimento</label>
-                  <input type="date" value={form.maturity_date} onChange={(e) => setForm({ ...form, maturity_date: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-                </div>
+                {form.type === "RENDA_FIXA" && (
+                  <div>
+                    <label className="text-xs text-muted mb-1 block">Vencimento</label>
+                    <input type="date" value={form.maturity_date} onChange={(e) => setForm({ ...form, maturity_date: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                  </div>
+                )}
               </>
             )}
 
