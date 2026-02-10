@@ -86,18 +86,22 @@ async def get_selic_cdi_rates(db: Session) -> dict:
     # Update cache
     _upsert_rate_cache(db, "SELIC", result.get("selic_daily", 0), {"annual": result.get("selic_annual", 0)})
     _upsert_rate_cache(db, "CDI", result.get("cdi_daily", 0), {"annual": result.get("cdi_annual", 0)})
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
     return result
 
 
 def _upsert_rate_cache(db: Session, ticker: str, price: float, extra: dict):
+    """Upsert rate cache - query by ticker only since unique constraint is on ticker."""
     cached = db.query(QuoteCache).filter(
         QuoteCache.ticker == ticker,
-        QuoteCache.asset_type == "RATE",
     ).first()
 
     if cached:
+        cached.asset_type = "RATE"
         cached.price = price
         cached.extra_data = extra
         cached.fetched_at = datetime.now(timezone.utc)

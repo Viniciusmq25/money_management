@@ -100,7 +100,7 @@ async def dashboard_summary(
     total_invested = sum((i.quantity or 0) * (i.avg_price or 0) for i in investments)
 
     # Fetch market data
-    market_data = {}
+    market_data = {"rates": {"selic_annual": 0, "cdi_annual": 0}}
     try:
         crypto_tickers = [i.ticker for i in investments if i.type.value == "CRYPTO"]
         stock_tickers = [i.ticker for i in investments if i.type.value in ("FII", "ACAO_BR", "ACAO_GLOBAL")]
@@ -111,9 +111,10 @@ async def dashboard_summary(
             market_data["fii"] = await get_fii_quotes(stock_tickers, db)
 
         rates = await get_selic_cdi_rates(db)
-        market_data["rates"] = rates
+        if rates:
+            market_data["rates"] = rates
     except Exception:
-        market_data["rates"] = {"selic_annual": 0, "cdi_annual": 0}
+        pass  # Keep default rates
 
     # Compute total current value
     total_current = 0

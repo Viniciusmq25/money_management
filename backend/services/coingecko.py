@@ -97,13 +97,13 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
             "extra": {"market_cap": market_cap},
         }
 
-        # Upsert cache
+        # Upsert cache (query by ticker only since unique constraint is on ticker)
         cached = db.query(QuoteCache).filter(
             QuoteCache.ticker == ticker,
-            QuoteCache.asset_type == "CRYPTO",
         ).first()
 
         if cached:
+            cached.asset_type = "CRYPTO"
             cached.price = price
             cached.change_24h = change
             cached.extra_data = {"market_cap": market_cap}
@@ -117,7 +117,10 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
                 extra_data={"market_cap": market_cap},
             ))
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
     return result
 
 
