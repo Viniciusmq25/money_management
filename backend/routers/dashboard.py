@@ -121,10 +121,36 @@ async def dashboard_summary(
         qty = inv.quantity or 0
         avg = inv.avg_price or 0
         invested = qty * avg
+        
+        # Determine current value logic
         if inv.type.value == "CRYPTO" and "crypto" in market_data and inv.ticker in market_data["crypto"]:
             total_current += qty * market_data["crypto"][inv.ticker]["price"]
         elif inv.type.value in ("FII", "ACAO_BR", "ACAO_GLOBAL") and "fii" in market_data and inv.ticker in market_data["fii"]:
             total_current += qty * market_data["fii"][inv.ticker]["price"]
+        elif inv.type.value in ("RENDA_FIXA", "CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"):
+            # Reuse simplistic renda fixa logic from investments router if possible, or duplicate simplistic version here
+            # For dashboard summary speed, we'll duplicate the simple logic or assume invested if calculation is complex
+            # But let's try to match investments.py logic for consistency
+            current_val = invested
+            try:
+                rates_data = market_data.get("rates", {})
+                annual_rate = 0
+                if inv.rate_type == "SELIC":
+                    annual_rate = rates_data.get("selic_annual", 0) * (inv.rate_value or 100) / 100
+                elif inv.rate_type == "CDI":
+                    annual_rate = rates_data.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
+                elif inv.rate_type == "PREFIXADO":
+                    annual_rate = inv.rate_value or 0
+                
+                if inv.purchase_date:
+                    days = (today - inv.purchase_date).days
+                    if days > 0:
+                        daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                        factor = (1 + daily_rate) ** days  # using days as rough proxy for business days or just days
+                        current_val = invested * factor
+            except Exception:
+                pass
+            total_current += current_val
         else:
             total_current += invested
 
