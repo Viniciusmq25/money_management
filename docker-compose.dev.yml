@@ -1,0 +1,53 @@
+services:
+  money-management:
+    build: .
+    container_name: money-management-dev
+    restart: unless-stopped
+    environment:
+      - TZ=America/Sao_Paulo
+      - DATABASE_URL=postgresql://money:money@money-db:5432/money_management
+      - APP_PASSWORD=${APP_PASSWORD:-changeme}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
+      - BRAPI_TOKEN=${BRAPI_TOKEN:-}
+    depends_on:
+      money-db:
+        condition: service_healthy
+    networks:
+      - money-net
+      - caddy_net
+    expose:
+      - "8000"
+
+  money-db:
+    image: postgres:16-alpine
+    container_name: money-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=money
+      - POSTGRES_PASSWORD=money
+      - POSTGRES_DB=money_management
+      - TZ=America/Sao_Paulo
+    volumes:
+      - money_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U money -d money_management"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - money-net
+    # ports opcional (só se você quiser acessar o Postgres do host)
+    # ports:
+    #  - "5433:5432"
+
+networks:
+  money-net:
+    driver: bridge
+    internal: true
+  caddy_net:
+    external: true
+    name: caddy_net   # ou servidor-docker_caddy_net (o que existir no docker network ls)
+
+volumes:
+  money_db_data:
