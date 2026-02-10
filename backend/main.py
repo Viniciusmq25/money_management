@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 def migrate_investment_enum(db_engine):
     """Add new values to the investmenttype PostgreSQL enum if they don't exist."""
-    new_values = ['ACAO_BR', 'ACAO_GLOBAL', 'CAIXINHA_NUBANK']
+    new_values = ['ACAO_BR', 'ACAO_GLOBAL', 'CAIXINHA_NUBANK', 'CAIXINHA_TURBO_NUBANK']
     try:
         with db_engine.connect() as conn:
             # Check if the enum type exists first
