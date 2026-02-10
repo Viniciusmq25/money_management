@@ -13,6 +13,9 @@ router = APIRouter(prefix="/api/investments", tags=["investments"], dependencies
 
 async def enrich_investment(inv: Investment, db: Session) -> dict:
     """Add current price and P&L data to an investment."""
+    qty = inv.quantity or 0
+    avg = inv.avg_price or 0
+
     data = {
         "id": inv.id,
         "type": inv.type,
@@ -25,7 +28,7 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
         "rate_value": inv.rate_value,
         "maturity_date": inv.maturity_date,
         "created_at": inv.created_at,
-        "total_invested": inv.quantity * inv.avg_price,
+        "total_invested": qty * avg,
         "current_price": None,
         "change_24h": None,
         "current_value": None,
@@ -40,28 +43,28 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 p = prices[inv.ticker]
                 data["current_price"] = p["price"]
                 data["change_24h"] = p.get("change_24h")
-                data["current_value"] = inv.quantity * p["price"]
+                data["current_value"] = qty * p["price"]
         elif inv.type == InvestmentType.FII:
             quotes = await get_fii_quotes([inv.ticker], db)
             if inv.ticker in quotes:
                 q = quotes[inv.ticker]
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
-                data["current_value"] = inv.quantity * q["price"]
+                data["current_value"] = qty * q["price"]
         elif inv.type == InvestmentType.ACAO_BR:
             quotes = await get_stock_quotes([inv.ticker], db, asset_type="ACAO_BR")
             if inv.ticker in quotes:
                 q = quotes[inv.ticker]
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
-                data["current_value"] = inv.quantity * q["price"]
+                data["current_value"] = qty * q["price"]
         elif inv.type == InvestmentType.ACAO_GLOBAL:
             quotes = await get_stock_quotes([inv.ticker], db, asset_type="ACAO_GLOBAL")
             if inv.ticker in quotes:
                 q = quotes[inv.ticker]
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
-                data["current_value"] = inv.quantity * q["price"]
+                data["current_value"] = qty * q["price"]
         elif inv.type == InvestmentType.RENDA_FIXA:
             rates = await get_selic_cdi_rates(db)
             annual_rate = 0
@@ -77,8 +80,8 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 days = (date.today() - inv.purchase_date).days
                 daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
                 factor = (1 + daily_rate) ** min(days, days)
-                data["current_price"] = inv.avg_price * factor
-                data["current_value"] = inv.quantity * inv.avg_price * factor
+                data["current_price"] = avg * factor
+                data["current_value"] = qty * avg * factor
     except Exception:
         pass
 
@@ -101,7 +104,8 @@ async def list_investments(type: InvestmentType | None = None, db: Session = Dep
 
 @router.post("", response_model=InvestmentResponse)
 async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db)):
-    inv = Investment(**data.model_dump())
+    payload = data.model_dump(exclude={"applied_amount"})
+    inv = Investment(**payload)
     db.add(inv)
     db.commit()
     db.refresh(inv)
