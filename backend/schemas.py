@@ -55,8 +55,8 @@ class TransactionCreate(BaseModel):
 
 class TransactionUpdate(BaseModel):
     type: Optional[TransactionType] = None
-    amount: Optional[float] = None
-    description: Optional[str] = None
+    amount: Optional[float] = Field(default=None, gt=0)
+    description: Optional[str] = Field(default=None, max_length=255)
     date: Optional[date] = None
     category_id: Optional[int] = None
 

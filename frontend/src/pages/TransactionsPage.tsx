@@ -56,11 +56,27 @@ export default function TransactionsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    const amount = parseFloat(form.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Valor deve ser maior que zero");
+      return;
+    }
+    if (!form.description.trim()) {
+      toast.error("Descrição é obrigatória");
+      return;
+    }
+    if (!form.date) {
+      toast.error("Data é obrigatória");
+      return;
+    }
+    
     setSubmitting(true);
     const payload = {
       type: form.type,
-      amount: parseFloat(form.amount),
-      description: form.description,
+      amount: amount,
+      description: form.description.trim(),
       date: form.date,
       category_id: form.category_id ? parseInt(form.category_id) : null,
     };
@@ -75,8 +91,15 @@ export default function TransactionsPage() {
       }
       resetForm();
       fetchData();
-    } catch {
-      toast.error("Erro ao salvar");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (typeof detail === "string") {
+        toast.error(detail);
+      } else if (Array.isArray(detail)) {
+        toast.error(detail.map((d: any) => d.msg).join(", "));
+      } else {
+        toast.error("Erro ao salvar");
+      }
     } finally {
       setSubmitting(false);
     }
