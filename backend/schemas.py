@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import date, datetime
 from models.category import CategoryType
@@ -55,10 +55,17 @@ class TransactionCreate(BaseModel):
 
 class TransactionUpdate(BaseModel):
     type: Optional[TransactionType] = None
-    amount: Optional[float] = Field(default=None, gt=0)
+    amount: Optional[float] = None
     description: Optional[str] = Field(default=None, max_length=255)
     date: Optional[date] = None
     category_id: Optional[int] = None
+
+    @field_validator('amount')
+    @classmethod
+    def amount_must_be_positive(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('amount must be greater than 0')
+        return v
 
 
 class TransactionResponse(BaseModel):
