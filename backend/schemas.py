@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, Union
 from datetime import date, datetime
 from models.category import CategoryType
 from models.transaction import TransactionType, TransactionSource
@@ -54,18 +54,19 @@ class TransactionCreate(BaseModel):
 
 
 class TransactionUpdate(BaseModel):
-    type: Optional[TransactionType] = None
-    amount: Optional[float] = None
-    description: Optional[str] = Field(default=None, max_length=255)
-    date: Optional[date] = None
-    category_id: Optional[int] = None
+    type: Union[TransactionType, None] = None
+    amount: Union[float, None] = None
+    description: Union[str, None] = None
+    date: Union[date, None] = None
+    category_id: Union[int, None] = None
 
-    @field_validator('amount')
-    @classmethod
-    def amount_must_be_positive(cls, v):
-        if v is not None and v <= 0:
+    @model_validator(mode='after')
+    def validate_fields(self):
+        if self.amount is not None and self.amount <= 0:
             raise ValueError('amount must be greater than 0')
-        return v
+        if self.description is not None and len(self.description) > 255:
+            raise ValueError('description must be at most 255 characters')
+        return self
 
 
 class TransactionResponse(BaseModel):
