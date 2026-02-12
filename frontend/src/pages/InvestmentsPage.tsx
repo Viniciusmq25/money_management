@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, TrendingUp, TrendingDown, X, Bitcoin, Building2, Landmark, BarChart3, Globe, Loader2, RefreshCw, Link2, Link2Off, Key, Eye, EyeOff } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, X, Bitcoin, Building2, Landmark, BarChart3, Globe, Loader2, RefreshCw, Link2, Link2Off, Key, Eye, EyeOff, LayoutGrid } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import api from "../api/client";
 import { formatCurrency, formatPercent } from "../utils/format";
@@ -8,6 +8,7 @@ import type { InvestmentSummary } from "../types";
 import toast from "react-hot-toast";
 
 const TYPE_LABELS: Record<string, string> = { 
+  ALL: "Todos",
   CRYPTO: "Criptomoedas", 
   FII: "FIIs", 
   RENDA_FIXA: "Renda Fixa", 
@@ -17,6 +18,7 @@ const TYPE_LABELS: Record<string, string> = {
   CAIXINHA_TURBO_NUBANK: "Caixinha Turbo"
 };
 const TYPE_COLORS: Record<string, string> = { 
+  ALL: "#64748B",
   CRYPTO: "#F59E0B", 
   FII: "#6C63FF", 
   RENDA_FIXA: "#10B981", 
@@ -26,6 +28,7 @@ const TYPE_COLORS: Record<string, string> = {
   CAIXINHA_TURBO_NUBANK: "#FF5733"
 };
 const TYPE_ICONS: Record<string, React.ReactNode> = {
+  ALL: <LayoutGrid className="w-5 h-5" />,
   CRYPTO: <Bitcoin className="w-5 h-5" />,
   FII: <Building2 className="w-5 h-5" />,
   RENDA_FIXA: <Landmark className="w-5 h-5" />,
@@ -35,13 +38,20 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   CAIXINHA_TURBO_NUBANK: <TrendingUp className="w-5 h-5" />
 };
 
-type Tab = "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL" | "CAIXINHA_NUBANK" | "CAIXINHA_TURBO_NUBANK";
+// Cores para ativos individuais no gráfico
+const ASSET_COLORS = [
+  "#F59E0B", "#6C63FF", "#10B981", "#3B82F6", "#EC4899", 
+  "#820AD1", "#FF5733", "#14B8A6", "#8B5CF6", "#F43F5E",
+  "#06B6D4", "#84CC16", "#EAB308", "#22C55E", "#A855F7"
+];
+
+type Tab = "ALL" | "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL" | "CAIXINHA_NUBANK" | "CAIXINHA_TURBO_NUBANK";
 
 export default function InvestmentsPage() {
   const [summary, setSummary] = useState<InvestmentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [tab, setTab] = useState<Tab>("CRYPTO");
+  const [tab, setTab] = useState<Tab>("ALL");
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
 
@@ -176,13 +186,22 @@ export default function InvestmentsPage() {
     );
   }
 
-  const positions = summary?.positions.filter((p) => p.type === tab) || [];
+  const positions = tab === "ALL" 
+    ? (summary?.positions || []) 
+    : summary?.positions.filter((p) => p.type === tab) || [];
+  
   const pieData = summary
-    ? Object.entries(summary.by_type).map(([key, val]) => ({
-        name: TYPE_LABELS[key] || key,
-        value: val.current || val.invested,
-        color: TYPE_COLORS[key] || "#64748B",
-      }))
+    ? tab === "ALL"
+      ? Object.entries(summary.by_type).map(([key, val]) => ({
+          name: TYPE_LABELS[key] || key,
+          value: val.current || val.invested,
+          color: TYPE_COLORS[key] || "#64748B",
+        }))
+      : positions.map((p, i) => ({
+          name: p.ticker,
+          value: p.current_value || p.total_invested || 0,
+          color: ASSET_COLORS[i % ASSET_COLORS.length],
+        }))
     : [];
 
   return (
@@ -379,7 +398,7 @@ export default function InvestmentsPage() {
         <div className="lg:col-span-3 bg-primary-light rounded-2xl border border-border overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-border overflow-x-auto">
-            {(["CRYPTO", "FII", "RENDA_FIXA", "ACAO_BR", "ACAO_GLOBAL", "CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"] as Tab[]).map((t) => (
+            {(["ALL", "CRYPTO", "FII", "RENDA_FIXA", "ACAO_BR", "ACAO_GLOBAL", "CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -394,7 +413,7 @@ export default function InvestmentsPage() {
 
           {positions.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted">Nenhum investimento em {TYPE_LABELS[tab]}</p>
+              <p className="text-muted">{tab === "ALL" ? "Nenhum investimento cadastrado" : `Nenhum investimento em ${TYPE_LABELS[tab]}`}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -402,6 +421,7 @@ export default function InvestmentsPage() {
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase">Ativo</th>
+                    {tab === "ALL" && <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase">Tipo</th>}
                     <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Qtd</th>
                     <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Preço Médio</th>
                     <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Atual</th>
@@ -420,6 +440,16 @@ export default function InvestmentsPage() {
                           <p className="text-xs text-muted">{inv.name}</p>
                         </div>
                       </td>
+                      {tab === "ALL" && (
+                        <td className="px-5 py-3">
+                          <span 
+                            className="text-xs font-medium px-2 py-1 rounded-lg" 
+                            style={{ backgroundColor: `${TYPE_COLORS[inv.type]}20`, color: TYPE_COLORS[inv.type] }}
+                          >
+                            {TYPE_LABELS[inv.type]}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-5 py-3 text-right text-sm text-white">{inv.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</td>
                       <td className="px-5 py-3 text-right text-sm text-white">{formatCurrency(inv.avg_price, showMoney)}</td>
                       <td className="px-5 py-3 text-right">
