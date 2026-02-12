@@ -1,11 +1,17 @@
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number, visible: boolean = true): string {
+  if (!visible) {
+    return "R$ •••••";
+  }
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
   }).format(value);
 }
 
-export function formatPercent(value: number): string {
+export function formatPercent(value: number, visible: boolean = true): string {
+  if (!visible) {
+    return "•••%";
+  }
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 

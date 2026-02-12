@@ -200,3 +200,25 @@ class DashboardSummary(BaseModel):
     expense_by_category: list[dict]
     recent_transactions: list[TransactionResponse]
     market_data: dict
+
+
+# === Binance Integration ===
+class BinanceConfigCreate(BaseModel):
+    api_key: str = Field(..., min_length=10, description="Binance API Key")
+    api_secret: str = Field(..., min_length=10, description="Binance API Secret")
+
+
+class BinanceConfigResponse(BaseModel):
+    configured: bool
+    active: bool
+    last_sync: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class BinanceSyncResponse(BaseModel):
+    created: int
+    updated: int
+    skipped: int
+    total_assets: int
+    details: list[str]
+    synced_at: str

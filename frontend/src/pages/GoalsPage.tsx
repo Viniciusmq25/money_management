@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Target, X, Calendar, Pencil, Trash2, Loader2 } from "lucide-react";
 import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
+import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { Goal } from "../types";
 import toast from "react-hot-toast";
 
@@ -10,6 +11,7 @@ export default function GoalsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const { showMoney } = useMoneyVisibility();
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -161,8 +163,8 @@ export default function GoalsPage() {
               {/* Progress bar */}
               <div className="mb-3">
                 <div className="flex justify-between text-sm mb-1.5">
-                  <span className="text-muted">{formatCurrency(goal.current_amount)}</span>
-                  <span className="text-white font-medium">{formatCurrency(goal.target_amount)}</span>
+                  <span className="text-muted">{formatCurrency(goal.current_amount, showMoney)}</span>
+                  <span className="text-white font-medium">{formatCurrency(goal.target_amount, showMoney)}</span>
                 </div>
                 <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden">
                   <div

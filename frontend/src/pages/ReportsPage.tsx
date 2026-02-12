@@ -16,12 +16,14 @@ import {
 } from "recharts";
 import api from "../api/client";
 import { formatCurrency, formatMonth } from "../utils/format";
+import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import toast from "react-hot-toast";
 
 export default function ReportsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState(6);
+  const { showMoney } = useMoneyVisibility();
 
   useEffect(() => {
     setLoading(true);
@@ -84,19 +86,19 @@ export default function ReportsPage() {
         <div className="bg-primary-light rounded-2xl p-5 border border-border">
           <p className="text-sm text-muted mb-1">Total Receitas (período)</p>
           <p className="text-2xl font-bold text-success">
-            {formatCurrency(barData.reduce((s: number, d: any) => s + d.income, 0))}
+            {formatCurrency(barData.reduce((s: number, d: any) => s + d.income, 0), showMoney)}
           </p>
         </div>
         <div className="bg-primary-light rounded-2xl p-5 border border-border">
           <p className="text-sm text-muted mb-1">Total Despesas (período)</p>
           <p className="text-2xl font-bold text-danger">
-            {formatCurrency(barData.reduce((s: number, d: any) => s + d.expense, 0))}
+            {formatCurrency(barData.reduce((s: number, d: any) => s + d.expense, 0), showMoney)}
           </p>
         </div>
         <div className="bg-primary-light rounded-2xl p-5 border border-border">
           <p className="text-sm text-muted mb-1">Saldo Acumulado</p>
           <p className="text-2xl font-bold text-white">
-            {formatCurrency(barData.reduce((s: number, d: any) => s + d.saldo, 0))}
+            {formatCurrency(barData.reduce((s: number, d: any) => s + d.saldo, 0), showMoney)}
           </p>
         </div>
       </div>
@@ -113,7 +115,7 @@ export default function ReportsPage() {
               <YAxis tick={{ fill: "#94A3B8", fontSize: 12 }} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip
                 contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-                formatter={(v: number) => formatCurrency(v)}
+                formatter={(v: number) => formatCurrency(v, showMoney)}
               />
               <Legend wrapperStyle={{ color: "#94A3B8", fontSize: 12 }} />
               <Bar dataKey="income" name="Receitas" fill="#10B981" radius={[6, 6, 0, 0]} />
@@ -145,7 +147,7 @@ export default function ReportsPage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-                    formatter={(v: number) => formatCurrency(v)}
+                    formatter={(v: number) => formatCurrency(v, showMoney)}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -156,7 +158,7 @@ export default function ReportsPage() {
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
                       <span className="text-muted">{cat.name}</span>
                     </div>
-                    <span className="text-white font-medium">{formatCurrency(cat.value)}</span>
+                    <span className="text-white font-medium">{formatCurrency(cat.value, showMoney)}</span>
                   </div>
                 ))}
               </div>
@@ -183,7 +185,7 @@ export default function ReportsPage() {
             <YAxis tick={{ fill: "#94A3B8", fontSize: 12 }} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
             <Tooltip
               contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-              formatter={(v: number) => formatCurrency(v)}
+              formatter={(v: number) => formatCurrency(v, showMoney)}
             />
             <Line type="monotone" dataKey="patrimonio" name="Patrimônio" stroke="#6C63FF" strokeWidth={3} dot={{ fill: "#6C63FF", r: 4 }} />
           </LineChart>
@@ -209,10 +211,10 @@ export default function ReportsPage() {
               {barData.map((row: any, i: number) => (
                 <tr key={i} className="border-b border-border last:border-0 hover:bg-surface-hover transition">
                   <td className="px-5 py-3 text-sm text-white font-medium">{row.name}</td>
-                  <td className="px-5 py-3 text-sm text-success text-right">{formatCurrency(row.income)}</td>
-                  <td className="px-5 py-3 text-sm text-danger text-right">{formatCurrency(row.expense)}</td>
+                  <td className="px-5 py-3 text-sm text-success text-right">{formatCurrency(row.income, showMoney)}</td>
+                  <td className="px-5 py-3 text-sm text-danger text-right">{formatCurrency(row.expense, showMoney)}</td>
                   <td className={`px-5 py-3 text-sm font-semibold text-right ${row.saldo >= 0 ? "text-success" : "text-danger"}`}>
-                    {formatCurrency(row.saldo)}
+                    {formatCurrency(row.saldo, showMoney)}
                   </td>
                 </tr>
               ))}

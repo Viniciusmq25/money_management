@@ -21,11 +21,13 @@ import {
 } from "recharts";
 import api from "../api/client";
 import { formatCurrency, formatPercent, formatMonth, formatDate } from "../utils/format";
+import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { DashboardData } from "../types";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { showMoney } = useMoneyVisibility();
 
   useEffect(() => {
     api
@@ -58,29 +60,29 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
           title="Saldo do Mês"
-          value={formatCurrency(data.balance)}
+          value={formatCurrency(data.balance, showMoney)}
           icon={<Wallet className="w-5 h-5" />}
           trend={data.balance >= 0 ? "up" : "down"}
           color="accent"
         />
         <KpiCard
           title="Receitas"
-          value={formatCurrency(data.total_income)}
+          value={formatCurrency(data.total_income, showMoney)}
           icon={<TrendingUp className="w-5 h-5" />}
           trend="up"
           color="success"
         />
         <KpiCard
           title="Despesas"
-          value={formatCurrency(data.total_expense)}
+          value={formatCurrency(data.total_expense, showMoney)}
           icon={<TrendingDown className="w-5 h-5" />}
           trend="down"
           color="danger"
         />
         <KpiCard
           title="Patrimônio Investido"
-          value={formatCurrency(data.total_current_value || data.total_invested)}
-          subtitle={data.total_invested > 0 ? formatPercent(data.investment_change_pct) : undefined}
+          value={formatCurrency(data.total_current_value || data.total_invested, showMoney)}
+          subtitle={data.total_invested > 0 ? formatPercent(data.investment_change_pct, showMoney) : undefined}
           icon={<PiggyBank className="w-5 h-5" />}
           trend={data.investment_change_pct >= 0 ? "up" : "down"}
           color="accent"
@@ -109,7 +111,7 @@ export default function DashboardPage() {
               <YAxis tick={{ fill: "#94A3B8", fontSize: 12 }} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip
                 contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-                formatter={(value: number) => formatCurrency(value)}
+                formatter={(value: number) => formatCurrency(value, showMoney)}
               />
               <Area type="monotone" dataKey="income" name="Receitas" stroke="#10B981" fill="url(#incomeGrad)" strokeWidth={2} />
               <Area type="monotone" dataKey="expense" name="Despesas" stroke="#EF4444" fill="url(#expenseGrad)" strokeWidth={2} />
@@ -139,7 +141,7 @@ export default function DashboardPage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatCurrency(value, showMoney)}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -150,7 +152,7 @@ export default function DashboardPage() {
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
                       <span className="text-muted">{cat.name}</span>
                     </div>
-                    <span className="text-white font-medium">{formatCurrency(cat.value)}</span>
+                    <span className="text-white font-medium">{formatCurrency(cat.value, showMoney)}</span>
                   </div>
                 ))}
               </div>
@@ -188,7 +190,7 @@ export default function DashboardPage() {
                   </div>
                   <span className={`text-sm font-semibold ${txn.type === "INCOME" ? "text-success" : "text-danger"}`}>
                     {txn.type === "INCOME" ? "+" : "-"}
-                    {formatCurrency(txn.amount)}
+                    {formatCurrency(txn.amount, showMoney)}
                   </span>
                 </div>
               ))
@@ -227,9 +229,9 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted">Cripto</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-white">{formatCurrency(info.price)}</p>
+                    <p className="text-sm font-semibold text-white">{formatCurrency(info.price, showMoney)}</p>
                     <p className={`text-xs font-medium ${info.change_24h >= 0 ? "text-success" : "text-danger"}`}>
-                      {formatPercent(info.change_24h)}
+                      {formatPercent(info.change_24h, showMoney)}
                     </p>
                   </div>
                 </div>
@@ -244,9 +246,9 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted">FII</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-white">{formatCurrency(info.price)}</p>
+                    <p className="text-sm font-semibold text-white">{formatCurrency(info.price, showMoney)}</p>
                     <p className={`text-xs font-medium ${info.change_24h >= 0 ? "text-success" : "text-danger"}`}>
-                      {formatPercent(info.change_24h)}
+                      {formatPercent(info.change_24h, showMoney)}
                     </p>
                   </div>
                 </div>

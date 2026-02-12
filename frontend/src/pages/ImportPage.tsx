@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { Upload, FileSpreadsheet, Check, AlertTriangle, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
+import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { ImportPreview } from "../types";
 import toast from "react-hot-toast";
 
@@ -11,6 +12,7 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [done, setDone] = useState(false);
+  const { showMoney } = useMoneyVisibility();
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
@@ -108,11 +110,11 @@ export default function ImportPage() {
               </div>
               <div className="bg-surface rounded-xl p-3 text-center">
                 <p className="text-xs text-muted">Receitas</p>
-                <p className="text-lg font-bold text-success">{formatCurrency(preview.total_income)}</p>
+                <p className="text-lg font-bold text-success">{formatCurrency(preview.total_income, showMoney)}</p>
               </div>
               <div className="bg-surface rounded-xl p-3 text-center">
                 <p className="text-xs text-muted">Despesas</p>
-                <p className="text-lg font-bold text-danger">{formatCurrency(preview.total_expense)}</p>
+                <p className="text-lg font-bold text-danger">{formatCurrency(preview.total_expense, showMoney)}</p>
               </div>
               <div className="bg-surface rounded-xl p-3 text-center">
                 <p className="text-xs text-muted">Duplicatas</p>
@@ -165,7 +167,7 @@ export default function ImportPage() {
                       <td className="px-4 py-2.5 text-right">
                         <span className={`text-sm font-medium flex items-center justify-end gap-1 ${txn.type === "INCOME" ? "text-success" : "text-danger"}`}>
                           {txn.type === "INCOME" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                          {formatCurrency(txn.amount)}
+                          {formatCurrency(txn.amount, showMoney)}
                         </span>
                       </td>
                     </tr>

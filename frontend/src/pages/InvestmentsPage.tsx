@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Plus, TrendingUp, TrendingDown, X, Bitcoin, Building2, Landmark, BarChart3, Globe, Loader2 } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, X, Bitcoin, Building2, Landmark, BarChart3, Globe, Loader2, RefreshCw, Link2, Link2Off, Key, Eye, EyeOff } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import api from "../api/client";
 import { formatCurrency, formatPercent } from "../utils/format";
+import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { InvestmentSummary } from "../types";
 import toast from "react-hot-toast";
 
@@ -42,6 +43,14 @@ export default function InvestmentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState<Tab>("CRYPTO");
   const [showForm, setShowForm] = useState(false);
+  const { showMoney } = useMoneyVisibility();
+
+  // Binance integration state
+  const [binanceStatus, setBinanceStatus] = useState<{ configured: boolean; active: boolean; last_sync: string | null } | null>(null);
+  const [showBinanceConfig, setShowBinanceConfig] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [binanceForm, setBinanceForm] = useState({ api_key: "", api_secret: "" });
+  const [showSecret, setShowSecret] = useState(false);
 
   const [form, setForm] = useState({
     type: "CRYPTO" as Tab,
@@ -66,8 +75,59 @@ export default function InvestmentsPage() {
     setLoading(false);
   };
 
+  const fetchBinanceStatus = async () => {
+    try {
+      const { data } = await api.get("/investments/binance/status");
+      setBinanceStatus(data);
+    } catch {
+      // Silently fail
+    }
+  };
+
+  const handleBinanceConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await api.post("/investments/binance/config", binanceForm);
+      toast.success("Binance conectada com sucesso!");
+      setShowBinanceConfig(false);
+      setBinanceForm({ api_key: "", api_secret: "" });
+      fetchBinanceStatus();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Erro ao configurar Binance");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleBinanceSync = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post("/investments/binance/sync");
+      toast.success(`Sincronizado! ${data.created} criados, ${data.updated} atualizados`);
+      fetchData();
+      fetchBinanceStatus();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Erro ao sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleBinanceDisconnect = async () => {
+    if (!confirm("Deseja desconectar sua conta Binance?")) return;
+    try {
+      await api.delete("/investments/binance/config");
+      toast.success("Binance desconectada");
+      setBinanceStatus(null);
+    } catch {
+      toast.error("Erro ao desconectar");
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchBinanceStatus();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,37 +187,153 @@ export default function InvestmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-white">Investimentos</h2>
-        <button
-          onClick={() => {
-            setForm({ ...form, type: tab });
-            setShowForm(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> Adicionar
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Binance Integration Buttons */}
+          {binanceStatus?.configured ? (
+            <>
+              <button
+                onClick={handleBinanceSync}
+                disabled={syncing}
+                className="flex items-center gap-2 px-3 py-2 bg-warning/20 hover:bg-warning/30 text-warning text-sm font-medium rounded-xl transition cursor-pointer disabled:opacity-50"
+                title="Sincronizar com Binance"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Sincronizando..." : "Sync Binance"}
+              </button>
+              <button
+                onClick={handleBinanceDisconnect}
+                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition cursor-pointer"
+                title="Desconectar Binance"
+              >
+                <Link2Off className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setShowBinanceConfig(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-warning/20 hover:bg-warning/30 text-warning text-sm font-medium rounded-xl transition cursor-pointer"
+            >
+              <Link2 className="w-4 h-4" /> Conectar Binance
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setForm({ ...form, type: tab });
+              setShowForm(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Adicionar
+          </button>
+        </div>
       </div>
+
+      {/* Binance Config Modal */}
+      {showBinanceConfig && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowBinanceConfig(false)}>
+          <div className="bg-primary-light rounded-2xl p-6 w-full max-w-md border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-warning/20 flex items-center justify-center">
+                  <Bitcoin className="w-5 h-5 text-warning" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">Conectar Binance</h3>
+              </div>
+              <button onClick={() => setShowBinanceConfig(false)} className="text-muted hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-muted text-sm mb-4">
+              Para importar seus investimentos automaticamente, crie uma API Key na Binance com permissão <strong>apenas de leitura</strong>.
+            </p>
+
+            <form onSubmit={handleBinanceConfig} className="space-y-4">
+              <div>
+                <label className="text-xs text-muted mb-1 block">API Key</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <input
+                    type="text"
+                    value={binanceForm.api_key}
+                    onChange={(e) => setBinanceForm({ ...binanceForm, api_key: e.target.value })}
+                    placeholder="Cole sua API Key aqui"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-warning"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted mb-1 block">API Secret</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <input
+                    type={showSecret ? "text" : "password"}
+                    value={binanceForm.api_secret}
+                    onChange={(e) => setBinanceForm({ ...binanceForm, api_secret: e.target.value })}
+                    placeholder="Cole seu API Secret aqui"
+                    required
+                    className="w-full pl-10 pr-10 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-warning"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret(!showSecret)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white cursor-pointer"
+                  >
+                    {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-warning/10 border border-warning/20 rounded-xl p-3">
+                <p className="text-xs text-warning">
+                  ⚠️ <strong>Importante:</strong> Use apenas permissões de leitura. Nunca habilite saques ou trading na API Key usada aqui.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-3 bg-warning hover:bg-warning/90 text-black font-semibold rounded-xl transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-4 h-4" />
+                    Conectar e Testar
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-primary-light rounded-2xl p-5 border border-border">
             <p className="text-sm text-muted mb-1">Total Investido</p>
-            <p className="text-2xl font-bold text-white">{formatCurrency(summary.total_invested)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(summary.total_invested, showMoney)}</p>
           </div>
           <div className="bg-primary-light rounded-2xl p-5 border border-border">
             <p className="text-sm text-muted mb-1">Valor Atual</p>
-            <p className="text-2xl font-bold text-white">{formatCurrency(summary.total_current_value)}</p>
+            <p className="text-2xl font-bold text-white">{formatCurrency(summary.total_current_value, showMoney)}</p>
           </div>
           <div className="bg-primary-light rounded-2xl p-5 border border-border">
             <p className="text-sm text-muted mb-1">Lucro/Prejuízo</p>
             <p className={`text-2xl font-bold ${summary.profit_loss >= 0 ? "text-success" : "text-danger"}`}>
-              {formatCurrency(summary.profit_loss)}
+              {formatCurrency(summary.profit_loss, showMoney)}
             </p>
             <p className={`text-sm font-medium ${summary.profit_loss_pct >= 0 ? "text-success" : "text-danger"}`}>
-              {formatPercent(summary.profit_loss_pct)}
+              {formatPercent(summary.profit_loss_pct, showMoney)}
             </p>
           </div>
         </div>
@@ -178,7 +354,7 @@ export default function InvestmentsPage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-                    formatter={(v: number) => formatCurrency(v)}
+                    formatter={(v: number) => formatCurrency(v, showMoney)}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -189,7 +365,7 @@ export default function InvestmentsPage() {
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: e.color }} />
                       <span className="text-muted">{e.name}</span>
                     </div>
-                    <span className="text-white font-medium">{formatCurrency(e.value)}</span>
+                    <span className="text-white font-medium">{formatCurrency(e.value, showMoney)}</span>
                   </div>
                 ))}
               </div>
@@ -245,19 +421,19 @@ export default function InvestmentsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3 text-right text-sm text-white">{inv.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</td>
-                      <td className="px-5 py-3 text-right text-sm text-white">{formatCurrency(inv.avg_price)}</td>
+                      <td className="px-5 py-3 text-right text-sm text-white">{formatCurrency(inv.avg_price, showMoney)}</td>
                       <td className="px-5 py-3 text-right">
                         <div>
-                          <span className="text-sm text-white">{inv.current_price ? formatCurrency(inv.current_price) : "—"}</span>
+                          <span className="text-sm text-white">{inv.current_price ? formatCurrency(inv.current_price, showMoney) : "—"}</span>
                           {inv.change_24h !== null && inv.change_24h !== undefined && (
                             <span className={`block text-xs font-medium ${inv.change_24h >= 0 ? "text-success" : "text-danger"}`}>
-                              {formatPercent(inv.change_24h)}
+                              {formatPercent(inv.change_24h, showMoney)}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-3 text-right text-sm text-white">{formatCurrency(inv.total_invested || 0)}</td>
-                      <td className="px-5 py-3 text-right text-sm text-white">{inv.current_value ? formatCurrency(inv.current_value) : "—"}</td>
+                      <td className="px-5 py-3 text-right text-sm text-white">{formatCurrency(inv.total_invested || 0, showMoney)}</td>
+                      <td className="px-5 py-3 text-right text-sm text-white">{inv.current_value ? formatCurrency(inv.current_value, showMoney) : "—"}</td>
                       <td className="px-5 py-3 text-right">
                         {inv.profit_loss !== null && inv.profit_loss !== undefined ? (
                           <div className="flex items-center justify-end gap-1">
@@ -267,7 +443,7 @@ export default function InvestmentsPage() {
                               <TrendingDown className="w-3.5 h-3.5 text-danger" />
                             )}
                             <span className={`text-sm font-semibold ${inv.profit_loss >= 0 ? "text-success" : "text-danger"}`}>
-                              {formatCurrency(Math.abs(inv.profit_loss))}
+                              {formatCurrency(Math.abs(inv.profit_loss), showMoney)}
                             </span>
                           </div>
                         ) : (

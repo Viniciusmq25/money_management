@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Search, Pencil, Trash2, ArrowUpRight, ArrowDownRight, X, Loader2 } from "lucide-react";
 import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
+import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { Transaction, Category } from "../types";
 import toast from "react-hot-toast";
 
@@ -11,6 +12,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const { showMoney } = useMoneyVisibility();
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("");
@@ -315,7 +317,7 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-5 py-3 text-sm text-muted">{formatDate(txn.date)}</td>
                     <td className={`px-5 py-3 text-sm font-semibold text-right ${txn.type === "INCOME" ? "text-success" : "text-danger"}`}>
-                      {txn.type === "INCOME" ? "+" : "-"}{formatCurrency(txn.amount)}
+                      {txn.type === "INCOME" ? "+" : "-"}{formatCurrency(txn.amount, showMoney)}
                     </td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">

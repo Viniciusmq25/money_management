@@ -9,7 +9,10 @@ import {
   LogOut,
   DollarSign,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { useMoneyVisibility } from "../../contexts/MoneyVisibilityContext";
 
 const links = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -27,6 +30,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate();
+  const { showMoney, toggleMoneyVisibility } = useMoneyVisibility();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -100,8 +104,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-3 border-t border-border">
+        {/* Footer actions */}
+        <div className="p-3 border-t border-border space-y-1">
+          <button
+            onClick={toggleMoneyVisibility}
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer"
+            title={showMoney ? "Ocultar valores" : "Mostrar valores"}
+          >
+            {showMoney ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {showMoney ? "Ocultar Valores" : "Mostrar Valores"}
+          </button>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-danger hover:bg-surface-hover transition-all duration-200 cursor-pointer"

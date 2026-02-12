@@ -3,10 +3,12 @@ from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user
 from models.investment import Investment, InvestmentType
-from schemas import InvestmentCreate, InvestmentUpdate, InvestmentResponse
+from models.api_config import APIConfig
+from schemas import InvestmentCreate, InvestmentUpdate, InvestmentResponse, BinanceConfigCreate, BinanceConfigResponse, BinanceSyncResponse
 from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes, get_stock_quotes
 from services.bcb import get_selic_cdi_rates
+from services.binance import sync_binance_investments, get_binance_status, test_connection, BinanceError
 
 router = APIRouter(prefix="/api/investments", tags=["investments"], dependencies=[Depends(get_current_user)])
 
@@ -160,3 +162,60 @@ async def investment_summary(db: Session = Depends(get_db)):
         "by_type": by_type,
         "positions": enriched,
     }
+
+
+# === Binance Integration ===
+@router.get("/binance/status", response_model=BinanceConfigResponse)
+async def binance_status(db: Session = Depends(get_db)):
+    """Get current Binance API integration status."""
+    return await get_binance_status(db)
+
+
+@router.post("/binance/config", response_model=BinanceConfigResponse)
+async def configure_binance(data: BinanceConfigCreate, db: Session = Depends(get_db)):
+    """Configure Binance API credentials."""
+    # Test connection first
+    try:
+        await test_connection(data.api_key, data.api_secret)
+    except BinanceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao conectar na Binance: {str(e)}")
+    
+    # Check if config already exists
+    config = db.query(APIConfig).filter(APIConfig.service == "binance").first()
+    
+    if config:
+        config.set_credentials(data.api_key, data.api_secret)
+        config.is_active = True
+    else:
+        config = APIConfig(service="binance")
+        config.set_credentials(data.api_key, data.api_secret)
+        db.add(config)
+    
+    db.commit()
+    db.refresh(config)
+    
+    return await get_binance_status(db)
+
+
+@router.delete("/binance/config")
+async def remove_binance_config(db: Session = Depends(get_db)):
+    """Remove Binance API configuration."""
+    config = db.query(APIConfig).filter(APIConfig.service == "binance").first()
+    if config:
+        db.delete(config)
+        db.commit()
+    return {"ok": True}
+
+
+@router.post("/binance/sync", response_model=BinanceSyncResponse)
+async def sync_binance(db: Session = Depends(get_db)):
+    """Sync investments from Binance account."""
+    try:
+        result = await sync_binance_investments(db)
+        return result
+    except BinanceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao sincronizar: {str(e)}")

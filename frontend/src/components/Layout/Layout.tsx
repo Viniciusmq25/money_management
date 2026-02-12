@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Menu, DollarSign } from "lucide-react";
+import { Menu, DollarSign, Eye, EyeOff } from "lucide-react";
 import Sidebar from "./Sidebar";
+import { useMoneyVisibility } from "../../contexts/MoneyVisibilityContext";
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { showMoney, toggleMoneyVisibility } = useMoneyVisibility();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -25,7 +27,13 @@ export default function Layout() {
             </div>
             <span className="text-white font-semibold">Money</span>
           </div>
-          <div className="w-10" /> {/* Spacer for centering */}
+          <button
+            onClick={toggleMoneyVisibility}
+            className="p-2 text-muted hover:text-white hover:bg-surface-hover rounded-lg transition cursor-pointer"
+            title={showMoney ? "Ocultar valores" : "Mostrar valores"}
+          >
+            {showMoney ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
         </header>
 
         <main className="flex-1 overflow-y-auto bg-primary p-4 md:p-6 lg:p-8">

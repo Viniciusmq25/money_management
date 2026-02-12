@@ -4,6 +4,7 @@ from models.investment import Investment
 from models.goal import Goal
 from models.import_log import ImportLog
 from models.quote_cache import QuoteCache
+from models.api_config import APIConfig
 
 __all__ = [
     "Category",
@@ -12,4 +13,5 @@ __all__ = [
     "Goal",
     "ImportLog",
     "QuoteCache",
+    "APIConfig",
 ]
