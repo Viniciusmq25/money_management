@@ -3,14 +3,15 @@ from sqlalchemy.sql import func
 from database import Base
 from cryptography.fernet import Fernet
 from config import get_settings
+import base64
 
 settings = get_settings()
 
 
 def get_cipher():
     """Get Fernet cipher for encrypting/decrypting API secrets."""
-    key = settings.SECRET_KEY.encode()[:32].ljust(32, b"=")
-    import base64
+    # Use JWT_SECRET as base for encryption key
+    key = settings.JWT_SECRET.encode()[:32].ljust(32, b"=")
     key = base64.urlsafe_b64encode(key)
     return Fernet(key)
 
