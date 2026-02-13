@@ -51,6 +51,7 @@ export default function InvestmentsPage() {
   const [summary, setSummary] = useState<InvestmentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [consolidating, setConsolidating] = useState(false);
   const [tab, setTab] = useState<Tab>("ALL");
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
@@ -121,6 +122,20 @@ export default function InvestmentsPage() {
       toast.error(err.response?.data?.detail || "Erro ao sincronizar");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleConsolidate = async () => {
+    if (!confirm("Deseja consolidar posições duplicadas (mesmo ticker + tipo)?")) return;
+    setConsolidating(true);
+    try {
+      const { data } = await api.post("/investments/consolidate");
+      toast.success(data.message || "Consolidação concluída");
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Erro ao consolidar posições");
+    } finally {
+      setConsolidating(false);
     }
   };
 
@@ -238,8 +253,17 @@ export default function InvestmentsPage() {
             </button>
           )}
           <button
+            onClick={handleConsolidate}
+            disabled={consolidating}
+            className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-xl text-muted hover:text-white transition cursor-pointer disabled:opacity-50"
+            title="Consolidar posições duplicadas"
+          >
+            <RefreshCw className={`w-4 h-4 ${consolidating ? "animate-spin" : ""}`} />
+            {consolidating ? "Consolidando..." : "Consolidar"}
+          </button>
+          <button
             onClick={() => {
-              setForm({ ...form, type: tab });
+              setForm({ ...form, type: tab === "ALL" ? "CRYPTO" : tab });
               setShowForm(true);
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer"

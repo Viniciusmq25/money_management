@@ -106,7 +106,33 @@ async def list_investments(type: InvestmentType | None = None, db: Session = Dep
 
 @router.post("", response_model=InvestmentResponse)
 async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db)):
+    # Verifica se já existe investimento do mesmo ticker e tipo para consolidar
+    existing = db.query(Investment).filter(
+        Investment.ticker == data.ticker.upper(),
+        Investment.type == data.type
+    ).first()
+    
+    if existing:
+        # Calcula novo preço médio ponderado
+        old_total = (existing.quantity or 0) * (existing.avg_price or 0)
+        new_total = (data.quantity or 0) * (data.avg_price or 0)
+        new_quantity = (existing.quantity or 0) + (data.quantity or 0)
+        new_avg_price = (old_total + new_total) / new_quantity if new_quantity > 0 else 0
+        
+        # Atualiza posição existente
+        existing.quantity = new_quantity
+        existing.avg_price = new_avg_price
+        # Mantém a data de compra mais antiga
+        if data.purchase_date and (not existing.purchase_date or data.purchase_date < existing.purchase_date):
+            existing.purchase_date = data.purchase_date
+        
+        db.commit()
+        db.refresh(existing)
+        return await enrich_investment(existing, db)
+    
+    # Se não existe, cria novo
     payload = data.model_dump(exclude={"applied_amount"})
+    payload["ticker"] = payload["ticker"].upper()
     inv = Investment(**payload)
     db.add(inv)
     db.commit()
@@ -219,3 +245,57 @@ async def sync_binance(db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao sincronizar: {str(e)}")
+
+
+@router.post("/consolidate")
+async def consolidate_positions(db: Session = Depends(get_db)):
+    """Consolidate duplicate positions (same ticker + type) into single entries."""
+    from sqlalchemy import func
+    
+    # Find duplicates: group by ticker + type where count > 1
+    duplicates = db.query(
+        Investment.ticker, Investment.type
+    ).group_by(
+        Investment.ticker, Investment.type
+    ).having(
+        func.count(Investment.id) > 1
+    ).all()
+    
+    consolidated_count = 0
+    
+    for ticker, inv_type in duplicates:
+        # Get all positions for this ticker/type
+        positions = db.query(Investment).filter(
+            Investment.ticker == ticker,
+            Investment.type == inv_type
+        ).order_by(Investment.purchase_date.asc().nullslast()).all()
+        
+        if len(positions) < 2:
+            continue
+        
+        # Keep the first (oldest) position and merge others into it
+        main = positions[0]
+        total_value = sum((p.quantity or 0) * (p.avg_price or 0) for p in positions)
+        total_qty = sum(p.quantity or 0 for p in positions)
+        new_avg = total_value / total_qty if total_qty > 0 else 0
+        
+        # Update main position
+        main.quantity = total_qty
+        main.avg_price = new_avg
+        # Keep earliest purchase date
+        for p in positions:
+            if p.purchase_date and (not main.purchase_date or p.purchase_date < main.purchase_date):
+                main.purchase_date = p.purchase_date
+        
+        # Delete duplicates (all except main)
+        for p in positions[1:]:
+            db.delete(p)
+            consolidated_count += 1
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "consolidated": consolidated_count,
+        "message": f"{consolidated_count} posições duplicadas foram consolidadas"
+    }
