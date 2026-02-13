@@ -385,14 +385,14 @@ export default function InvestmentsPage() {
                     dataKey="value"
                     strokeWidth={0}
                     label={({ cx, cy, midAngle, outerRadius, percent }) => {
-                      if (percent < 0.05) return null;
+                      if (percent < 5) return null;
                       const RADIAN = Math.PI / 180;
                       const radius = outerRadius + 16;
                       const x = cx + radius * Math.cos(-midAngle * RADIAN);
                       const y = cy + radius * Math.sin(-midAngle * RADIAN);
                       return (
                         <text x={x} y={y} fill="#CBD5E1" fontSize={11} fontWeight={600} textAnchor="middle" dominantBaseline="central">
-                          {`${(percent * 100).toFixed(1)}%`}
+                          {`${percent.toFixed(1)}%`}
                         </text>
                       );
                     }}
@@ -407,10 +407,10 @@ export default function InvestmentsPage() {
                     itemStyle={{ color: "#FFFFFF", fontSize: 13, fontWeight: 500 }}
                     labelStyle={{ color: "#94A3B8", fontSize: 12, marginBottom: 4 }}
                     formatter={(v: number, _name: string, entry: any) => [
-                      `${formatCurrency(v, showMoney)}  (${entry.payload.percent.toFixed(1)}%)`,
+                      `${formatCurrency(v, showMoney)} (${entry.payload.percent.toFixed(1)}%)`,
                       entry.payload.name
                     ]}
-                    separator=""
+                    separator=" "
                   />
                 </PieChart>
               </ResponsiveContainer>
