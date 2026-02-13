@@ -466,15 +466,15 @@ export default function InvestmentsPage() {
                     paddingAngle={2}
                     dataKey="value"
                     strokeWidth={0}
-                    label={({ cx, cy, midAngle, outerRadius, percent }) => {
-                      if (percent < 5) return null;
+                    label={({ cx, cy, midAngle, outerRadius, payload }) => {
+                      if (payload.percent < 5) return null;
                       const RADIAN = Math.PI / 180;
                       const radius = outerRadius + 16;
                       const x = cx + radius * Math.cos(-midAngle * RADIAN);
                       const y = cy + radius * Math.sin(-midAngle * RADIAN);
                       return (
                         <text x={x} y={y} fill="#CBD5E1" fontSize={11} fontWeight={600} textAnchor="middle" dominantBaseline="central">
-                          {`${percent.toFixed(1)}%`}
+                          {`${payload.percent.toFixed(1)}%`}
                         </text>
                       );
                     }}
