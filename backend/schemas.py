@@ -116,8 +116,8 @@ class InvestmentCreate(BaseModel):
     @classmethod
     def ticker_uppercase(cls, v: str) -> str:
         v = v.upper().strip()
-        if not re.match(r'^[A-Z0-9\-.]+$', v):
-            raise ValueError('Ticker deve conter apenas letras, números, hífens e pontos')
+        if not re.match(r'^[A-Z0-9\-._]+$', v):
+            raise ValueError('Ticker deve conter apenas letras, números, hífens, pontos e underscores')
         return v
 
     @field_validator('name')
