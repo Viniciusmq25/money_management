@@ -82,6 +82,37 @@ EOF
 
 echo ""
 
+# Migração: adicionar coluna original_amount em investments
+echo "🔄 Verificando coluna original_amount em investments..."
+python3 << 'EOF'
+import os
+from sqlalchemy import text, create_engine
+
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    try:
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            result = conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'investments' AND column_name = 'original_amount'"
+            )).fetchone()
+            
+            if result:
+                print("✅ Coluna original_amount já existe")
+            else:
+                print("Adicionando coluna original_amount...")
+                conn.execute(text(
+                    "ALTER TABLE investments ADD COLUMN original_amount FLOAT"
+                ))
+                conn.commit()
+                print("✅ Coluna original_amount adicionada com sucesso")
+    except Exception as e:
+        print(f"⚠️  Erro ao verificar/adicionar coluna: {e}")
+EOF
+
+echo ""
+
 # Iniciar aplicação
 echo "🚀 Iniciando Uvicorn..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000
