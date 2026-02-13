@@ -113,6 +113,41 @@ EOF
 
 echo ""
 
+# Migração: criar tabela app_settings (para troca de senha)
+echo "🔄 Verificando tabela app_settings..."
+python3 << 'EOF'
+import os
+from sqlalchemy import text, create_engine
+
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    try:
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            result = conn.execute(text(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'app_settings')"
+            )).fetchone()
+            
+            if result and result[0]:
+                print("✅ Tabela app_settings já existe")
+            else:
+                print("Criando tabela app_settings...")
+                conn.execute(text("""
+                    CREATE TABLE app_settings (
+                        id SERIAL PRIMARY KEY,
+                        key VARCHAR(100) NOT NULL UNIQUE,
+                        value VARCHAR(500) NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    )
+                """))
+                conn.commit()
+                print("✅ Tabela app_settings criada com sucesso")
+    except Exception as e:
+        print(f"⚠️  Erro ao verificar/criar tabela: {e}")
+EOF
+
+echo ""
+
 # Iniciar aplicação
 echo "🚀 Iniciando Uvicorn..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000

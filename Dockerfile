@@ -33,6 +33,12 @@ COPY backend/ ./
 # Copy built frontend to static folder
 COPY --from=frontend-build /app/frontend/dist ./static
 
+# Make entrypoint executable
+RUN chmod +x entrypoint.sh
+
+# Install postgresql-client for pg_isready
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
+
 # Expose port
 EXPOSE 8000
 
@@ -40,5 +46,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
-# Run
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run via entrypoint (runs migrations then starts uvicorn)
+ENTRYPOINT ["./entrypoint.sh"]
