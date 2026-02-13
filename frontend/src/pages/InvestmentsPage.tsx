@@ -188,18 +188,6 @@ export default function InvestmentsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const positionsFiltered = tab === "ALL" 
-    ? (summary?.positions || []) 
-    : summary?.positions.filter((p) => p.type === tab) || [];
-
   // Sorting function
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -210,9 +198,23 @@ export default function InvestmentsPage() {
     }
   };
 
-  // Sort positions
-  const positions = useMemo(() => {
-    return [...positionsFiltered].sort((a, b) => {
+  // Sort icon helper
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="w-3 h-3 opacity-50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="w-3 h-3" />
+      : <ArrowDown className="w-3 h-3" />;
+  };
+
+  // Sorted positions
+  const sortedPositions = useMemo(() => {
+    const filtered = tab === "ALL" 
+      ? (summary?.positions || []) 
+      : summary?.positions.filter((p) => p.type === tab) || [];
+    
+    return [...filtered].sort((a, b) => {
       let aVal: any;
       let bVal: any;
 
@@ -261,17 +263,17 @@ export default function InvestmentsPage() {
       }
       return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
     });
-  }, [positionsFiltered, sortColumn, sortDirection]);
+  }, [summary?.positions, tab, sortColumn, sortDirection]);
 
-  // Sort icon component
-  const SortIcon = ({ column }: { column: SortColumn }) => {
-    if (sortColumn !== column) {
-      return <ArrowUpDown className="w-3 h-3 opacity-50" />;
-    }
-    return sortDirection === "asc" 
-      ? <ArrowUp className="w-3 h-3" />
-      : <ArrowDown className="w-3 h-3" />;
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const positions = sortedPositions;
   
   const pieDataRaw = summary
     ? tab === "ALL"
@@ -546,7 +548,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center gap-1">
                         Ativo
-                        <SortIcon column="ticker" />
+                        {getSortIcon("ticker")}
                       </div>
                     </th>
                     {tab === "ALL" && (
@@ -556,7 +558,7 @@ export default function InvestmentsPage() {
                       >
                         <div className="flex items-center gap-1">
                           Tipo
-                          <SortIcon column="type" />
+                          {getSortIcon("type")}
                         </div>
                       </th>
                     )}
@@ -566,7 +568,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center justify-end gap-1">
                         Qtd
-                        <SortIcon column="quantity" />
+                        {getSortIcon("quantity")}
                       </div>
                     </th>
                     <th 
@@ -575,7 +577,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center justify-end gap-1">
                         Preço Médio
-                        <SortIcon column="avg_price" />
+                        {getSortIcon("avg_price")}
                       </div>
                     </th>
                     <th 
@@ -584,7 +586,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center justify-end gap-1">
                         Atual
-                        <SortIcon column="current_price" />
+                        {getSortIcon("current_price")}
                       </div>
                     </th>
                     <th 
@@ -593,7 +595,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center justify-end gap-1">
                         Investido
-                        <SortIcon column="total_invested" />
+                        {getSortIcon("total_invested")}
                       </div>
                     </th>
                     <th 
@@ -602,7 +604,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center justify-end gap-1">
                         Valor Atual
-                        <SortIcon column="current_value" />
+                        {getSortIcon("current_value")}
                       </div>
                     </th>
                     <th 
@@ -611,7 +613,7 @@ export default function InvestmentsPage() {
                     >
                       <div className="flex items-center justify-end gap-1">
                         P&L
-                        <SortIcon column="profit_loss" />
+                        {getSortIcon("profit_loss")}
                       </div>
                     </th>
                     <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase"></th>
