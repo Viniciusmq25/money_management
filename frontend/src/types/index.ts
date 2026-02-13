@@ -31,6 +31,7 @@ export interface Investment {
   rate_type: string | null;
   rate_value: number | null;
   maturity_date: string | null;
+  original_amount: number | null;
   created_at: string;
   current_price: number | null;
   change_24h: number | null;

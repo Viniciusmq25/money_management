@@ -17,6 +17,15 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
     """Add current price and P&L data to an investment."""
     qty = inv.quantity or 0
     avg = inv.avg_price or 0
+    is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
+    
+    # Para caixinhas: original_amount é o investido, quantity é o valor atual
+    if is_caixinha:
+        total_invested = inv.original_amount if inv.original_amount else qty * avg
+        current_value = qty * avg  # quantity representa o valor atual
+    else:
+        total_invested = qty * avg
+        current_value = None
 
     data = {
         "id": inv.id,
@@ -29,11 +38,12 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
         "rate_type": inv.rate_type,
         "rate_value": inv.rate_value,
         "maturity_date": inv.maturity_date,
+        "original_amount": inv.original_amount,
         "created_at": inv.created_at,
-        "total_invested": qty * avg,
+        "total_invested": total_invested,
         "current_price": None,
         "change_24h": None,
-        "current_value": None,
+        "current_value": current_value,
         "profit_loss": None,
         "profit_loss_pct": None,
     }
@@ -67,7 +77,8 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
                 data["current_value"] = qty * q["price"]
-        elif inv.type in (InvestmentType.RENDA_FIXA, InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK):
+        elif inv.type == InvestmentType.RENDA_FIXA:
+            # Para renda fixa normal, calcular baseado na taxa
             rates = await get_selic_cdi_rates(db)
             annual_rate = 0
             if inv.rate_type == "SELIC":
@@ -76,7 +87,6 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 annual_rate = rates.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
             elif inv.rate_type == "PREFIXADO":
                 annual_rate = inv.rate_value or 0
-            # Simplistic: estimate current value with annual rate
             if inv.purchase_date:
                 from datetime import date
                 days = (date.today() - inv.purchase_date).days
@@ -84,6 +94,7 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 factor = (1 + daily_rate) ** min(days, days)
                 data["current_price"] = avg * factor
                 data["current_value"] = qty * avg * factor
+        # Para caixinhas, o current_value já foi definido acima (é o quantity * avg_price)
     except Exception:
         pass
 

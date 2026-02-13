@@ -88,8 +88,9 @@ class InvestmentCreate(BaseModel):
     rate_type: Optional[str] = None
     rate_value: Optional[float] = None
     maturity_date: Optional[date] = None
-    # For caixinha: total R$ applied
+    # For caixinha: current value (quantity) and original amount applied
     applied_amount: Optional[float] = Field(default=None, ge=0)
+    original_amount: Optional[float] = Field(default=None, ge=0)  # quanto foi realmente investido
 
 
 class InvestmentUpdate(BaseModel):
@@ -100,6 +101,7 @@ class InvestmentUpdate(BaseModel):
     rate_type: Optional[str] = None
     rate_value: Optional[float] = None
     maturity_date: Optional[date] = None
+    original_amount: Optional[float] = None
 
 
 class InvestmentResponse(BaseModel):
@@ -113,6 +115,7 @@ class InvestmentResponse(BaseModel):
     rate_type: Optional[str]
     rate_value: Optional[float]
     maturity_date: Optional[date]
+    original_amount: Optional[float] = None
     created_at: Optional[datetime]
     # Enriched fields (from API)
     current_price: Optional[float] = None

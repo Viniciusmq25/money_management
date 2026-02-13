@@ -28,4 +28,6 @@ class Investment(Base):
     rate_type = Column(String(20), nullable=True)  # CDI, SELIC, PREFIXADO, IPCA+
     rate_value = Column(Float, nullable=True)  # e.g., 100 (100% CDI), 12.5 (12.5% a.a.)
     maturity_date = Column(Date, nullable=True)
+    # For caixinhas: original amount applied (to calculate real profit)
+    original_amount = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

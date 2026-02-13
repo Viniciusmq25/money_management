@@ -72,6 +72,7 @@ export default function InvestmentsPage() {
     rate_type: "",
     rate_value: "",
     maturity_date: "",
+    original_amount: "",  // valor original aplicado (para caixinhas)
   });
 
   const fetchData = async () => {
@@ -155,10 +156,11 @@ export default function InvestmentsPage() {
         rate_type: form.rate_type || null,
         rate_value: form.rate_value ? parseFloat(form.rate_value) : null,
         maturity_date: form.maturity_date || null,
+        original_amount: isCaixinha && form.original_amount ? parseFloat(form.original_amount) : null,
       });
       toast.success("Investimento adicionado");
       setShowForm(false);
-      setForm({ type: "CRYPTO", ticker: "", name: "", quantity: "", avg_price: "", purchase_date: new Date().toISOString().slice(0, 10), rate_type: "", rate_value: "", maturity_date: "" });
+      setForm({ type: "CRYPTO", ticker: "", name: "", quantity: "", avg_price: "", purchase_date: new Date().toISOString().slice(0, 10), rate_type: "", rate_value: "", maturity_date: "", original_amount: "" });
       fetchData();
     } catch {
       toast.error("Erro ao salvar");
@@ -526,10 +528,23 @@ export default function InvestmentsPage() {
               </>
             )}
 
-            <div className={`grid ${["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
-              <input type="number" step="any" placeholder={["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? "Quantidade em R$" : "Quantidade"} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-              {!["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) && (
-                <input type="number" step="0.01" placeholder="Preço médio (R$)" value={form.avg_price} onChange={(e) => setForm({ ...form, avg_price: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+            <div className={`grid ${["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? "grid-cols-2" : "grid-cols-2"} gap-3`}>
+              {["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted ml-1">Valor aplicado (R$)</label>
+                    <input type="number" step="0.01" placeholder="Ex: 1000" value={form.original_amount} onChange={(e) => setForm({ ...form, original_amount: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted ml-1">Valor atual (R$)</label>
+                    <input type="number" step="0.01" placeholder="Ex: 1013" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <input type="number" step="any" placeholder="Quantidade" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <input type="number" step="0.01" placeholder="Preço médio (R$)" value={form.avg_price} onChange={(e) => setForm({ ...form, avg_price: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                </>
               )}
             </div>
 
