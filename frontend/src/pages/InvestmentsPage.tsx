@@ -51,6 +51,7 @@ export default function InvestmentsPage() {
   const [summary, setSummary] = useState<InvestmentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [consolidating, setConsolidating] = useState(false);
   const [tab, setTab] = useState<Tab>("ALL");
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
