@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Plus, TrendingUp, TrendingDown, X, Bitcoin, Building2, Landmark, BarChart3, Globe, Loader2, RefreshCw, Link2, Link2Off, Key, Eye, EyeOff, LayoutGrid } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Plus, TrendingUp, TrendingDown, X, Bitcoin, Building2, Landmark, BarChart3, Globe, Loader2, RefreshCw, Link2, Link2Off, Key, Eye, EyeOff, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import api from "../api/client";
 import { formatCurrency, formatPercent } from "../utils/format";
@@ -47,6 +47,9 @@ const ASSET_COLORS = [
 
 type Tab = "ALL" | "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL" | "CAIXINHA_NUBANK" | "CAIXINHA_TURBO_NUBANK";
 
+type SortColumn = "ticker" | "type" | "quantity" | "avg_price" | "current_price" | "total_invested" | "current_value" | "profit_loss";
+type SortDirection = "asc" | "desc";
+
 export default function InvestmentsPage() {
   const [summary, setSummary] = useState<InvestmentSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,10 @@ export default function InvestmentsPage() {
   const [syncing, setSyncing] = useState(false);
   const [binanceForm, setBinanceForm] = useState({ api_key: "", api_secret: "" });
   const [showSecret, setShowSecret] = useState(false);
+
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<SortColumn>("current_value");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const [form, setForm] = useState({
     type: "CRYPTO" as Tab,
@@ -189,9 +196,82 @@ export default function InvestmentsPage() {
     );
   }
 
-  const positions = tab === "ALL" 
+  const positionsFiltered = tab === "ALL" 
     ? (summary?.positions || []) 
     : summary?.positions.filter((p) => p.type === tab) || [];
+
+  // Sorting function
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("desc");
+    }
+  };
+
+  // Sort positions
+  const positions = useMemo(() => {
+    return [...positionsFiltered].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (sortColumn) {
+        case "ticker":
+          aVal = a.ticker.toLowerCase();
+          bVal = b.ticker.toLowerCase();
+          break;
+        case "type":
+          aVal = TYPE_LABELS[a.type] || a.type;
+          bVal = TYPE_LABELS[b.type] || b.type;
+          break;
+        case "quantity":
+          aVal = a.quantity;
+          bVal = b.quantity;
+          break;
+        case "avg_price":
+          aVal = a.avg_price;
+          bVal = b.avg_price;
+          break;
+        case "current_price":
+          aVal = a.current_price ?? 0;
+          bVal = b.current_price ?? 0;
+          break;
+        case "total_invested":
+          aVal = a.total_invested ?? 0;
+          bVal = b.total_invested ?? 0;
+          break;
+        case "current_value":
+          aVal = a.current_value ?? 0;
+          bVal = b.current_value ?? 0;
+          break;
+        case "profit_loss":
+          aVal = a.profit_loss ?? 0;
+          bVal = b.profit_loss ?? 0;
+          break;
+        default:
+          aVal = 0;
+          bVal = 0;
+      }
+
+      if (typeof aVal === "string") {
+        return sortDirection === "asc" 
+          ? aVal.localeCompare(bVal) 
+          : bVal.localeCompare(aVal);
+      }
+      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }, [positionsFiltered, sortColumn, sortDirection]);
+
+  // Sort icon component
+  const SortIcon = ({ column }: { column: SortColumn }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="w-3 h-3 opacity-50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="w-3 h-3" />
+      : <ArrowDown className="w-3 h-3" />;
+  };
   
   const pieDataRaw = summary
     ? tab === "ALL"
@@ -460,14 +540,80 @@ export default function InvestmentsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase">Ativo</th>
-                    {tab === "ALL" && <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase">Tipo</th>}
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Qtd</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Preço Médio</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Atual</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Investido</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">Valor Atual</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase">P&L</th>
+                    <th 
+                      className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("ticker")}
+                    >
+                      <div className="flex items-center gap-1">
+                        Ativo
+                        <SortIcon column="ticker" />
+                      </div>
+                    </th>
+                    {tab === "ALL" && (
+                      <th 
+                        className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                        onClick={() => handleSort("type")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Tipo
+                          <SortIcon column="type" />
+                        </div>
+                      </th>
+                    )}
+                    <th 
+                      className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("quantity")}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Qtd
+                        <SortIcon column="quantity" />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("avg_price")}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Preço Médio
+                        <SortIcon column="avg_price" />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("current_price")}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Atual
+                        <SortIcon column="current_price" />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("total_invested")}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Investido
+                        <SortIcon column="total_invested" />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("current_value")}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Valor Atual
+                        <SortIcon column="current_value" />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none"
+                      onClick={() => handleSort("profit_loss")}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        P&L
+                        <SortIcon column="profit_loss" />
+                      </div>
+                    </th>
                     <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase"></th>
                   </tr>
                 </thead>

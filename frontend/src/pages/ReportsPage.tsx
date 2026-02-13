@@ -127,43 +127,72 @@ export default function ReportsPage() {
         {/* Pie chart - Category breakdown */}
         <div className="bg-primary-light rounded-2xl p-5 border border-border">
           <h3 className="text-sm font-semibold text-muted mb-4">Top Categorias de Gasto</h3>
-          {data.expense_by_category.length > 0 ? (
-            <div className="flex flex-col items-center">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={data.expense_by_category}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={95}
-                    paddingAngle={3}
-                    dataKey="value"
-                    label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {data.expense_by_category.map((entry: any, i: number) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, color: "#F1F5F9" }}
-                    formatter={(v: number) => formatCurrency(v, showMoney)}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="w-full space-y-2 mt-2">
-                {data.expense_by_category.map((cat: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                      <span className="text-muted">{cat.name}</span>
+          {data.expense_by_category.length > 0 ? (() => {
+            const pieTotal = data.expense_by_category.reduce((acc: number, e: any) => acc + e.value, 0);
+            const pieData = data.expense_by_category.map((e: any) => ({
+              ...e,
+              percent: pieTotal > 0 ? (e.value / pieTotal) * 100 : 0,
+            }));
+            return (
+              <div className="flex flex-col items-center">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                      strokeWidth={0}
+                      label={({ cx, cy, midAngle, outerRadius, percent }: any) => {
+                        if (percent < 0.05) return null;
+                        const RADIAN = Math.PI / 180;
+                        const radius = outerRadius + 16;
+                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                        return (
+                          <text x={x} y={y} fill="#CBD5E1" fontSize={11} fontWeight={600} textAnchor="middle" dominantBaseline="central">
+                            {`${(percent * 100).toFixed(1)}%`}
+                          </text>
+                        );
+                      }}
+                      labelLine={false}
+                    >
+                      {pieData.map((entry: any, i: number) => (
+                        <Cell key={i} fill={entry.color} style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" }} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: "#1E2139", border: "1px solid #3B3F5C", borderRadius: 12, padding: "10px 14px" }}
+                      itemStyle={{ color: "#FFFFFF", fontSize: 13, fontWeight: 500 }}
+                      labelStyle={{ color: "#94A3B8", fontSize: 12, marginBottom: 4 }}
+                      formatter={(v: number, _name: string, entry: any) => [
+                        `${formatCurrency(v, showMoney)} (${entry.payload.percent.toFixed(1)}%)`,
+                        entry.payload.name
+                      ]}
+                      separator=" "
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="w-full space-y-2 mt-3">
+                  {pieData.map((cat: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                        <span className="text-muted">{cat.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted text-xs">{cat.percent.toFixed(1)}%</span>
+                        <span className="text-white font-medium">{formatCurrency(cat.value, showMoney)}</span>
+                      </div>
                     </div>
-                    <span className="text-white font-medium">{formatCurrency(cat.value, showMoney)}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
+            );
+          })() : (
             <p className="text-muted text-sm text-center py-8">Nenhum dado de despesa</p>
           )}
         </div>
