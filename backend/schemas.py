@@ -100,13 +100,13 @@ class TransactionResponse(BaseModel):
 # === Investment ===
 class InvestmentCreate(BaseModel):
     type: InvestmentType
-    ticker: str = Field(..., max_length=20, min_length=1, pattern=r'^[A-Z0-9\-]+$')
+    ticker: str = Field(..., max_length=20, min_length=1)
     name: str = Field(..., max_length=150, min_length=1)
     quantity: Optional[float] = Field(default=None, ge=0)
     avg_price: Optional[float] = Field(default=None, ge=0)
     purchase_date: Optional[date] = None
     rate_type: Optional[str] = Field(default=None, max_length=20)
-    rate_value: Optional[float] = Field(default=None, ge=0, le=100)
+    rate_value: Optional[float] = Field(default=None, ge=0)
     maturity_date: Optional[date] = None
     # For caixinha: current value (quantity) and original amount applied
     applied_amount: Optional[float] = Field(default=None, ge=0)
@@ -115,7 +115,10 @@ class InvestmentCreate(BaseModel):
     @field_validator('ticker')
     @classmethod
     def ticker_uppercase(cls, v: str) -> str:
-        return v.upper().strip()
+        v = v.upper().strip()
+        if not re.match(r'^[A-Z0-9\-.]+$', v):
+            raise ValueError('Ticker deve conter apenas letras, números, hífens e pontos')
+        return v
 
     @field_validator('name')
     @classmethod
