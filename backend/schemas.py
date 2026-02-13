@@ -1,9 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import date, datetime
 from models.category import CategoryType
 from models.transaction import TransactionType, TransactionSource
 from models.investment import InvestmentType
+import re
 
 
 # === Auth ===
@@ -18,18 +19,32 @@ class TokenResponse(BaseModel):
 
 # === Category ===
 class CategoryCreate(BaseModel):
-    name: str = Field(..., max_length=100)
-    icon: str = "circle"
-    color: str = "#6C63FF"
+    name: str = Field(..., max_length=100, min_length=1)
+    icon: str = Field(default="circle", max_length=50)
+    color: str = Field(default="#6C63FF", pattern=r'^#[0-9A-Fa-f]{6}$')
     type: CategoryType
-    budget_limit: Optional[float] = None
+    budget_limit: Optional[float] = Field(default=None, ge=0)
+
+    @field_validator('name')
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('Nome não pode ser vazio')
+        return v.strip()
 
 
 class CategoryUpdate(BaseModel):
-    name: Optional[str] = None
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    budget_limit: Optional[float] = None
+    name: Optional[str] = Field(default=None, max_length=100, min_length=1)
+    icon: Optional[str] = Field(default=None, max_length=50)
+    color: Optional[str] = Field(default=None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    budget_limit: Optional[float] = Field(default=None, ge=0)
+
+    @field_validator('name')
+    @classmethod
+    def name_not_empty(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and (not v or not v.strip()):
+            raise ValueError('Nome não pode ser vazio')
+        return v.strip() if v else None
 
 
 class CategoryResponse(BaseModel):
@@ -80,17 +95,39 @@ class TransactionResponse(BaseModel):
 # === Investment ===
 class InvestmentCreate(BaseModel):
     type: InvestmentType
-    ticker: str = Field(..., max_length=20)
-    name: str = Field(..., max_length=150)
+    ticker: str = Field(..., max_length=20, min_length=1, pattern=r'^[A-Z0-9\-]+$')
+    name: str = Field(..., max_length=150, min_length=1)
     quantity: Optional[float] = Field(default=None, ge=0)
     avg_price: Optional[float] = Field(default=None, ge=0)
     purchase_date: Optional[date] = None
-    rate_type: Optional[str] = None
-    rate_value: Optional[float] = None
+    rate_type: Optional[str] = Field(default=None, max_length=20)
+    rate_value: Optional[float] = Field(default=None, ge=0, le=100)
     maturity_date: Optional[date] = None
     # For caixinha: current value (quantity) and original amount applied
     applied_amount: Optional[float] = Field(default=None, ge=0)
     original_amount: Optional[float] = Field(default=None, ge=0)  # quanto foi realmente investido
+
+    @field_validator('ticker')
+    @classmethod
+    def ticker_uppercase(cls, v: str) -> str:
+        return v.upper().strip()
+
+    @field_validator('name')
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('Nome não pode ser vazio')
+        return v.strip()
+
+    @field_validator('rate_type')
+    @classmethod
+    def validate_rate_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            valid_types = ['SELIC', 'CDI', 'PREFIXADO', 'IPCA+', 'IPCA']
+            if v.upper() not in valid_types:
+                raise ValueError(f'Tipo de taxa inválido. Use: {", ".join(valid_types)}')
+            return v.upper()
+        return None
 
 
 class InvestmentUpdate(BaseModel):
@@ -131,12 +168,19 @@ class InvestmentResponse(BaseModel):
 
 # === Goal ===
 class GoalCreate(BaseModel):
-    name: str = Field(..., max_length=150)
+    name: str = Field(..., max_length=150, min_length=1)
     target_amount: float = Field(..., gt=0)
     current_amount: float = Field(default=0, ge=0)
     deadline: Optional[date] = None
-    icon: str = "target"
-    color: str = "#6C63FF"
+    icon: str = Field(default="target", max_length=50)
+    color: str = Field(default="#6C63FF", pattern=r'^#[0-9A-Fa-f]{6}$')
+
+    @field_validator('name')
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('Nome não pode ser vazio')
+        return v.strip()
 
 
 class GoalUpdate(BaseModel):

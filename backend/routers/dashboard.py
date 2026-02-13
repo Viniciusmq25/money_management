@@ -10,6 +10,9 @@ from models.investment import Investment
 from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes
 from services.bcb import get_selic_cdi_rates
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
 
@@ -113,8 +116,8 @@ async def dashboard_summary(
         rates = await get_selic_cdi_rates(db)
         if rates:
             market_data["rates"] = rates
-    except Exception:
-        pass  # Keep default rates
+    except Exception as e:
+        logger.error(f"Erro ao buscar dados de mercado para dashboard: {str(e)}")
 
     # Compute total current value
     total_current = 0
@@ -149,8 +152,8 @@ async def dashboard_summary(
                         daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
                         factor = (1 + daily_rate) ** days  # using days as rough proxy for business days or just days
                         current_val = invested * factor
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Erro ao calcular valor atual de renda fixa para investimento {inv.id}: {str(e)}")
             total_current += current_val
         else:
             total_current += invested

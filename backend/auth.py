@@ -2,10 +2,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 from config import get_settings
 
 security = HTTPBearer()
 settings = get_settings()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_access_token() -> str:
@@ -15,7 +17,11 @@ def create_access_token() -> str:
 
 
 def verify_password(password: str) -> bool:
-    return password == settings.APP_PASSWORD
+    """Verifica senha usando hash bcrypt."""
+    try:
+        return pwd_context.verify(password, settings.APP_PASSWORD_HASH)
+    except Exception:
+        return False
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:

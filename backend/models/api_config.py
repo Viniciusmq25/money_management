@@ -10,10 +10,23 @@ settings = get_settings()
 
 def get_cipher():
     """Get Fernet cipher for encrypting/decrypting API secrets."""
-    # Use JWT_SECRET as base for encryption key
-    key = settings.JWT_SECRET.encode()[:32].ljust(32, b"=")
-    key = base64.urlsafe_b64encode(key)
-    return Fernet(key)
+    # Use dedicated encryption key or generate one if not set
+    if settings.ENCRYPTION_KEY:
+        key = settings.ENCRYPTION_KEY.encode()
+    else:
+        # Fallback: use JWT_SECRET but ensure it's properly formatted
+        # WARNING: This is still not ideal - set ENCRYPTION_KEY in production!
+        key_bytes = settings.JWT_SECRET.encode()[:32].ljust(32, b"\0")
+        key = base64.urlsafe_b64encode(key_bytes)
+        return Fernet(key)
+
+    # If ENCRYPTION_KEY is set, use it directly (should be base64 encoded 32-byte key)
+    try:
+        return Fernet(key)
+    except Exception:
+        # If invalid, generate a new one (WARNING: will invalidate existing encrypted data!)
+        key = Fernet.generate_key()
+        return Fernet(key)
 
 
 class APIConfig(Base):

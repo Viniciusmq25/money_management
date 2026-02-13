@@ -43,13 +43,29 @@ async def preview_import(file: UploadFile = File(...), db: Session = Depends(get
     else:
         raise HTTPException(status_code=400, detail="Formato não suportado. Use .ofx ou .csv")
 
-    # Check for duplicates
+    # Check for duplicates by fit_id (OFX) and by date+amount+description (CSV fallback)
     existing_fit_ids = set()
+    existing_fingerprints = set()
+
     if transactions:
+        # Check fit_id duplicates (OFX files)
         fit_ids = [t["fit_id"] for t in transactions if t.get("fit_id")]
         if fit_ids:
             existing = db.query(Transaction.fit_id).filter(Transaction.fit_id.in_(fit_ids)).all()
             existing_fit_ids = {e[0] for e in existing}
+
+        # Check date+amount+description duplicates (CSV files without fit_id)
+        # Create fingerprints for existing transactions
+        csv_transactions = [t for t in transactions if not t.get("fit_id")]
+        if csv_transactions:
+            dates = [t["date"] for t in csv_transactions]
+            existing_txns = db.query(Transaction.date, Transaction.amount, Transaction.description).filter(
+                Transaction.date.in_(dates)
+            ).all()
+            existing_fingerprints = {
+                (txn.date, abs(txn.amount), txn.description.strip().lower())
+                for txn in existing_txns
+            }
 
     preview_txns = []
     total_income = 0
@@ -57,11 +73,18 @@ async def preview_import(file: UploadFile = File(...), db: Session = Depends(get
     duplicates_count = 0
 
     for t in transactions:
-        is_dup = t.get("fit_id") in existing_fit_ids
-        if is_dup:
-            duplicates_count += 1
+        # Check duplicates by fit_id or by date+amount+description fingerprint
+        is_dup_fit_id = t.get("fit_id") and t.get("fit_id") in existing_fit_ids
         txn_type = TransactionType.INCOME if t["amount"] >= 0 else TransactionType.EXPENSE
         amount = abs(t["amount"])
+
+        # Check fingerprint duplicate for CSV imports
+        fingerprint = (t["date"], amount, t["description"].strip().lower())
+        is_dup_fingerprint = not t.get("fit_id") and fingerprint in existing_fingerprints
+
+        is_dup = is_dup_fit_id or is_dup_fingerprint
+        if is_dup:
+            duplicates_count += 1
 
         if txn_type == TransactionType.INCOME:
             total_income += amount

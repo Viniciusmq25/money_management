@@ -3,8 +3,10 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from models.quote_cache import QuoteCache
 from config import get_settings
+import logging
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
@@ -76,7 +78,8 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
             resp = await client.get(f"{COINGECKO_BASE}/simple/price", params=params)
             resp.raise_for_status()
             data = resp.json()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Erro ao buscar preços de criptomoedas no CoinGecko: {str(e)}")
         return result
 
     # Map back to tickers and update cache
@@ -97,9 +100,10 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
             "extra": {"market_cap": market_cap},
         }
 
-        # Upsert cache (query by ticker only since unique constraint is on ticker)
+        # Upsert cache (query by ticker AND asset_type)
         cached = db.query(QuoteCache).filter(
             QuoteCache.ticker == ticker,
+            QuoteCache.asset_type == "CRYPTO",
         ).first()
 
         if cached:
@@ -119,7 +123,8 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
 
     try:
         db.commit()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Erro ao salvar cache de criptomoedas: {str(e)}")
         db.rollback()
     return result
 
@@ -141,5 +146,6 @@ async def get_crypto_history(coin_id: str, days: int = 30) -> list[dict]:
             {"date": datetime.fromtimestamp(p[0] / 1000).strftime("%Y-%m-%d"), "price": p[1]}
             for p in prices
         ]
-    except Exception:
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico de {coin_id}: {str(e)}")
         return []

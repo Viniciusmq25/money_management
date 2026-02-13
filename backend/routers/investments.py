@@ -9,6 +9,9 @@ from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes, get_stock_quotes
 from services.bcb import get_selic_cdi_rates
 from services.binance import sync_binance_investments, get_binance_status, test_connection, BinanceError
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/investments", tags=["investments"], dependencies=[Depends(get_current_user)])
 
@@ -87,16 +90,19 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 annual_rate = rates.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
             elif inv.rate_type == "PREFIXADO":
                 annual_rate = inv.rate_value or 0
-            if inv.purchase_date:
+            if inv.purchase_date and annual_rate > 0:
                 from datetime import date
                 days = (date.today() - inv.purchase_date).days
-                daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
-                factor = (1 + daily_rate) ** min(days, days)
-                data["current_price"] = avg * factor
-                data["current_value"] = qty * avg * factor
+                if days > 0:
+                    # Converte taxa anual para taxa diária (usando 252 dias úteis)
+                    daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                    # Aplica a taxa para dias corridos (aproximação)
+                    factor = (1 + daily_rate) ** days
+                    data["current_price"] = avg * factor
+                    data["current_value"] = qty * avg * factor
         # Para caixinhas, o current_value já foi definido acima (é o quantity * avg_price)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Erro ao enriquecer investimento {inv.id} ({inv.ticker}): {str(e)}", exc_info=True)
 
     if data["current_value"] and data["total_invested"]:
         data["profit_loss"] = data["current_value"] - data["total_invested"]

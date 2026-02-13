@@ -67,13 +67,13 @@ async def get_fii_quotes(tickers: list[str], db: Session) -> dict:
                 "extra": extra,
             }
 
-            # Upsert cache (query by ticker only since unique constraint is on ticker)
+            # Upsert cache (query by ticker AND asset_type)
             cached = db.query(QuoteCache).filter(
                 QuoteCache.ticker == ticker,
+                QuoteCache.asset_type == "FII",
             ).first()
 
             if cached:
-                cached.asset_type = "FII"
                 cached.price = price
                 cached.change_24h = change
                 cached.extra_data = extra
@@ -154,13 +154,13 @@ async def get_stock_quotes(tickers: list[str], db: Session, asset_type: str = "A
                 "extra": extra,
             }
 
-            # Upsert cache (query by ticker only since unique constraint is on ticker)
+            # Upsert cache (query by ticker AND asset_type)
             cached = db.query(QuoteCache).filter(
                 QuoteCache.ticker == ticker,
+                QuoteCache.asset_type == asset_type,
             ).first()
 
             if cached:
-                cached.asset_type = asset_type
                 cached.price = price
                 cached.change_24h = change
                 cached.extra_data = extra
