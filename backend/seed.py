@@ -12,6 +12,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Compras", "icon": "shopping-bag", "color": "#F59E0B", "type": CategoryType.EXPENSE},
     {"name": "Assinaturas", "icon": "tv", "color": "#6366F1", "type": CategoryType.EXPENSE},
     {"name": "Pets", "icon": "paw-print", "color": "#A855F7", "type": CategoryType.EXPENSE},
+    {"name": "Investimentos", "icon": "piggy-bank", "color": "#0EA5E9", "type": CategoryType.EXPENSE},
     {"name": "Outros (Despesa)", "icon": "circle-dot", "color": "#64748B", "type": CategoryType.EXPENSE},
     # Income
     {"name": "Salário", "icon": "briefcase", "color": "#10B981", "type": CategoryType.INCOME},
@@ -23,13 +24,20 @@ DEFAULT_CATEGORIES = [
 
 
 def seed_categories(db: Session):
-    """Insert default categories if none exist."""
+    """Insert default categories if none exist, and add any missing defaults."""
     existing = db.query(Category).count()
-    if existing > 0:
+    if existing == 0:
+        for cat_data in DEFAULT_CATEGORIES:
+            db.add(Category(**cat_data))
+        db.commit()
         return
 
+    # Add any missing default categories to existing databases
     for cat_data in DEFAULT_CATEGORIES:
-        cat = Category(**cat_data)
-        db.add(cat)
-
+        exists = db.query(Category).filter(
+            Category.name == cat_data["name"],
+            Category.type == cat_data["type"],
+        ).first()
+        if not exists:
+            db.add(Category(**cat_data))
     db.commit()
