@@ -114,6 +114,23 @@ class InvestmentDepositResponse(BaseModel):
         from_attributes = True
 
 
+# === Investment Redemption ===
+class InvestmentRedemptionCreate(BaseModel):
+    amount: float = Field(..., gt=0, description="Valor do resgate")
+    redemption_date: date = Field(..., description="Data do resgate")
+
+
+class InvestmentRedemptionResponse(BaseModel):
+    id: int
+    investment_id: int
+    amount: float
+    redemption_date: date
+    created_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 # === Investment ===
 class InvestmentCreate(BaseModel):
     type: InvestmentType

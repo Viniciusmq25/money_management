@@ -4,8 +4,9 @@ from database import get_db
 from auth import get_current_user
 from models.investment import Investment, InvestmentType
 from models.investment_deposit import InvestmentDeposit
+from models.investment_redemption import InvestmentRedemption
 from models.api_config import APIConfig
-from schemas import InvestmentCreate, InvestmentUpdate, InvestmentResponse, InvestmentDepositCreate, InvestmentDepositResponse, BinanceConfigCreate, BinanceConfigResponse, BinanceSyncResponse
+from schemas import InvestmentCreate, InvestmentUpdate, InvestmentResponse, InvestmentDepositCreate, InvestmentDepositResponse, InvestmentRedemptionCreate, InvestmentRedemptionResponse, BinanceConfigCreate, BinanceConfigResponse, BinanceSyncResponse
 from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes, get_stock_quotes
 from services.bcb import get_selic_cdi_rates
@@ -29,13 +30,14 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
     current_value = None
     
     if is_caixinha:
-        # Busca todos os deposits desta caixinha
+        # Busca todos os deposits e redemptions desta caixinha
         deposits = db.query(InvestmentDeposit).filter(InvestmentDeposit.investment_id == inv.id).order_by(InvestmentDeposit.deposit_date).all()
+        redemptions = db.query(InvestmentRedemption).filter(InvestmentRedemption.investment_id == inv.id).order_by(InvestmentRedemption.redemption_date).all()
         
-        if deposits:
-            # Cálculo com deposits
-            total_invested = sum(d.amount for d in deposits)
-            current_value = await _calculate_caixinha_value(deposits, inv, db)
+        if deposits or redemptions:
+            # Cálculo com deposits e resgates
+            total_invested = sum(d.amount for d in deposits) - sum(r.amount for r in redemptions)
+            current_value = await _calculate_caixinha_value(deposits, redemptions, inv, db)
         else:
             # Fallback para dados legados (original_amount)
             total_invested = inv.original_amount if inv.original_amount else qty * avg
@@ -124,10 +126,13 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
     return data
 
 
-async def _calculate_caixinha_value(deposits: list[InvestmentDeposit], inv: Investment, db: Session) -> float:
-    """Calculate caixinha current value based on deposits with CDI growth."""
-    if not deposits or not inv.rate_type or not inv.rate_value:
-        return sum(d.amount for d in deposits)
+async def _calculate_caixinha_value(deposits: list[InvestmentDeposit], redemptions: list[InvestmentRedemption], inv: Investment, db: Session) -> float:
+    """Calculate caixinha current value based on deposits and redemptions with CDI growth."""
+    net_deposits = sum(d.amount for d in deposits) - sum(r.amount for r in redemptions)
+    if not deposits and not redemptions:
+        return 0
+    if not inv.rate_type or not inv.rate_value:
+        return net_deposits
     
     try:
         rates = await get_selic_cdi_rates(db)
@@ -140,7 +145,7 @@ async def _calculate_caixinha_value(deposits: list[InvestmentDeposit], inv: Inve
             annual_rate = inv.rate_value or 0
         
         if annual_rate <= 0:
-            return sum(d.amount for d in deposits)
+            return net_deposits
         
         total_value = 0
         today = date.today()
@@ -156,10 +161,20 @@ async def _calculate_caixinha_value(deposits: list[InvestmentDeposit], inv: Inve
                 # Aporte futuro ou hoje
                 total_value += deposit.amount
         
+        # Subtrai o valor de cada resgate com seu respectivo rendimento projetado desde a data do resgate
+        for redemption in redemptions:
+            days = (today - redemption.redemption_date).days
+            if days > 0:
+                daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                factor = (1 + daily_rate) ** days
+                total_value -= redemption.amount * factor
+            else:
+                total_value -= redemption.amount
+                
         return total_value
     except Exception as e:
         logger.error(f"Erro ao calcular valor da caixinha {inv.id}: {str(e)}", exc_info=True)
-        return sum(d.amount for d in deposits)
+        return net_deposits
 
 
 @router.get("", response_model=list[InvestmentResponse])
@@ -443,5 +458,71 @@ async def delete_deposit(investment_id: int, deposit_id: int, db: Session = Depe
         raise HTTPException(status_code=404, detail="Aporte não encontrado")
     
     db.delete(deposit)
+    db.commit()
+    return {"ok": True}
+
+
+# === Investment Redemptions ===
+@router.get("/{investment_id}/redemptions", response_model=list[InvestmentRedemptionResponse])
+async def list_redemptions(investment_id: int, db: Session = Depends(get_db)):
+    """List all redemptions for an investment."""
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    
+    redemptions = db.query(InvestmentRedemption).filter(InvestmentRedemption.investment_id == investment_id).order_by(InvestmentRedemption.redemption_date).all()
+    return redemptions
+
+
+@router.post("/{investment_id}/redemptions", response_model=InvestmentRedemptionResponse)
+async def create_redemption(investment_id: int, data: InvestmentRedemptionCreate, db: Session = Depends(get_db)):
+    """Add a redemption to an investment."""
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    
+    is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
+    if not is_caixinha:
+        raise HTTPException(status_code=400, detail="Resgates suportados apenas em caixinhas por enquanto")
+    
+    redemption = InvestmentRedemption(
+        investment_id=investment_id,
+        amount=data.amount,
+        redemption_date=data.redemption_date
+    )
+    db.add(redemption)
+    db.commit()
+    db.refresh(redemption)
+    return redemption
+
+
+@router.put("/{investment_id}/redemptions/{redemption_id}", response_model=InvestmentRedemptionResponse)
+async def update_redemption(investment_id: int, redemption_id: int, data: InvestmentRedemptionCreate, db: Session = Depends(get_db)):
+    """Update a redemption."""
+    redemption = db.query(InvestmentRedemption).filter(
+        InvestmentRedemption.id == redemption_id,
+        InvestmentRedemption.investment_id == investment_id
+    ).first()
+    if not redemption:
+        raise HTTPException(status_code=404, detail="Resgate não encontrado")
+    
+    redemption.amount = data.amount
+    redemption.redemption_date = data.redemption_date
+    db.commit()
+    db.refresh(redemption)
+    return redemption
+
+
+@router.delete("/{investment_id}/redemptions/{redemption_id}")
+async def delete_redemption(investment_id: int, redemption_id: int, db: Session = Depends(get_db)):
+    """Delete a redemption."""
+    redemption = db.query(InvestmentRedemption).filter(
+        InvestmentRedemption.id == redemption_id,
+        InvestmentRedemption.investment_id == investment_id
+    ).first()
+    if not redemption:
+        raise HTTPException(status_code=404, detail="Resgate não encontrado")
+    
+    db.delete(redemption)
     db.commit()
     return {"ok": True}
