@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user
 from models.investment import Investment, InvestmentType
+from models.investment_deposit import InvestmentDeposit
 from models.api_config import APIConfig
-from schemas import InvestmentCreate, InvestmentUpdate, InvestmentResponse, BinanceConfigCreate, BinanceConfigResponse, BinanceSyncResponse
+from schemas import InvestmentCreate, InvestmentUpdate, InvestmentResponse, InvestmentDepositCreate, InvestmentDepositResponse, BinanceConfigCreate, BinanceConfigResponse, BinanceSyncResponse
 from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes, get_stock_quotes
 from services.bcb import get_selic_cdi_rates
 from services.binance import sync_binance_investments, get_binance_status, test_connection, BinanceError
 import logging
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,22 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
     avg = inv.avg_price or 0
     is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
     
-    # Para caixinhas: original_amount é o investido, quantity é o valor atual
+    # Para caixinhas com deposits: calcular a partir dos aportes
+    total_invested = 0
+    current_value = None
+    
     if is_caixinha:
-        total_invested = inv.original_amount if inv.original_amount else qty * avg
-        current_value = qty * avg  # quantity representa o valor atual
+        # Busca todos os deposits desta caixinha
+        deposits = db.query(InvestmentDeposit).filter(InvestmentDeposit.investment_id == inv.id).order_by(InvestmentDeposit.deposit_date).all()
+        
+        if deposits:
+            # Cálculo com deposits
+            total_invested = sum(d.amount for d in deposits)
+            current_value = await _calculate_caixinha_value(deposits, inv, db)
+        else:
+            # Fallback para dados legados (original_amount)
+            total_invested = inv.original_amount if inv.original_amount else qty * avg
+            current_value = qty * avg
     else:
         total_invested = qty * avg
         current_value = None
@@ -80,30 +94,23 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
                 data["current_value"] = qty * q["price"]
-        elif inv.type in (InvestmentType.RENDA_FIXA, InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK):
+        elif inv.type == InvestmentType.RENDA_FIXA:
             # Calcular rendimento baseado na taxa CDI/SELIC/Prefixado
-            rates = await get_selic_cdi_rates(db)
-            annual_rate = 0
-            if inv.rate_type == "SELIC":
-                annual_rate = rates.get("selic_annual", 0) * (inv.rate_value or 100) / 100
-            elif inv.rate_type == "CDI":
-                annual_rate = rates.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
-            elif inv.rate_type == "PREFIXADO":
-                annual_rate = inv.rate_value or 0
-            if inv.purchase_date and annual_rate > 0:
-                from datetime import date
-                days = (date.today() - inv.purchase_date).days
-                if days > 0:
-                    # Converte taxa anual para taxa diária (usando 252 dias úteis)
-                    daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
-                    # Aplica a taxa para dias corridos (aproximação)
-                    factor = (1 + daily_rate) ** days
-                    if is_caixinha:
-                        # Para caixinhas: calcula valor atual a partir do original_amount
-                        base = inv.original_amount or (qty * avg)
-                        data["current_value"] = base * factor
-                        data["current_price"] = factor  # fator de crescimento
-                    else:
+            if inv.purchase_date:
+                rates = await get_selic_cdi_rates(db)
+                annual_rate = 0
+                if inv.rate_type == "SELIC":
+                    annual_rate = rates.get("selic_annual", 0) * (inv.rate_value or 100) / 100
+                elif inv.rate_type == "CDI":
+                    annual_rate = rates.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
+                elif inv.rate_type == "PREFIXADO":
+                    annual_rate = inv.rate_value or 0
+                
+                if annual_rate > 0:
+                    days = (date.today() - inv.purchase_date).days
+                    if days > 0:
+                        daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                        factor = (1 + daily_rate) ** days
                         data["current_price"] = avg * factor
                         data["current_value"] = qty * avg * factor
     except Exception as e:
@@ -115,6 +122,44 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
             data["profit_loss_pct"] = (data["profit_loss"] / data["total_invested"]) * 100
 
     return data
+
+
+async def _calculate_caixinha_value(deposits: list[InvestmentDeposit], inv: Investment, db: Session) -> float:
+    """Calculate caixinha current value based on deposits with CDI growth."""
+    if not deposits or not inv.rate_type or not inv.rate_value:
+        return sum(d.amount for d in deposits)
+    
+    try:
+        rates = await get_selic_cdi_rates(db)
+        annual_rate = 0
+        if inv.rate_type == "SELIC":
+            annual_rate = rates.get("selic_annual", 0) * (inv.rate_value or 100) / 100
+        elif inv.rate_type == "CDI":
+            annual_rate = rates.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
+        elif inv.rate_type == "PREFIXADO":
+            annual_rate = inv.rate_value or 0
+        
+        if annual_rate <= 0:
+            return sum(d.amount for d in deposits)
+        
+        total_value = 0
+        today = date.today()
+        
+        # Calcula o valor de cada aporte com seu respectivo rendimento
+        for deposit in deposits:
+            days = (today - deposit.deposit_date).days
+            if days > 0:
+                daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                factor = (1 + daily_rate) ** days
+                total_value += deposit.amount * factor
+            else:
+                # Aporte futuro ou hoje
+                total_value += deposit.amount
+        
+        return total_value
+    except Exception as e:
+        logger.error(f"Erro ao calcular valor da caixinha {inv.id}: {str(e)}", exc_info=True)
+        return sum(d.amount for d in deposits)
 
 
 @router.get("", response_model=list[InvestmentResponse])
@@ -334,3 +379,69 @@ async def consolidate_positions(db: Session = Depends(get_db)):
         "consolidated": consolidated_count,
         "message": f"{consolidated_count} posições duplicadas foram consolidadas"
     }
+
+
+# === Investment Deposits ===
+@router.get("/{investment_id}/deposits", response_model=list[InvestmentDepositResponse])
+async def list_deposits(investment_id: int, db: Session = Depends(get_db)):
+    """List all deposits for an investment."""
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    
+    deposits = db.query(InvestmentDeposit).filter(InvestmentDeposit.investment_id == investment_id).order_by(InvestmentDeposit.deposit_date).all()
+    return deposits
+
+
+@router.post("/{investment_id}/deposits", response_model=InvestmentDepositResponse)
+async def create_deposit(investment_id: int, data: InvestmentDepositCreate, db: Session = Depends(get_db)):
+    """Add a deposit to an investment (for caixinhas with multiple contributions)."""
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    
+    is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
+    if not is_caixinha:
+        raise HTTPException(status_code=400, detail="Deposits só podem ser adicionados a caixinhas")
+    
+    deposit = InvestmentDeposit(
+        investment_id=investment_id,
+        amount=data.amount,
+        deposit_date=data.deposit_date
+    )
+    db.add(deposit)
+    db.commit()
+    db.refresh(deposit)
+    return deposit
+
+
+@router.put("/{investment_id}/deposits/{deposit_id}", response_model=InvestmentDepositResponse)
+async def update_deposit(investment_id: int, deposit_id: int, data: InvestmentDepositCreate, db: Session = Depends(get_db)):
+    """Update a deposit."""
+    deposit = db.query(InvestmentDeposit).filter(
+        InvestmentDeposit.id == deposit_id,
+        InvestmentDeposit.investment_id == investment_id
+    ).first()
+    if not deposit:
+        raise HTTPException(status_code=404, detail="Aporte não encontrado")
+    
+    deposit.amount = data.amount
+    deposit.deposit_date = data.deposit_date
+    db.commit()
+    db.refresh(deposit)
+    return deposit
+
+
+@router.delete("/{investment_id}/deposits/{deposit_id}")
+async def delete_deposit(investment_id: int, deposit_id: int, db: Session = Depends(get_db)):
+    """Delete a deposit."""
+    deposit = db.query(InvestmentDeposit).filter(
+        InvestmentDeposit.id == deposit_id,
+        InvestmentDeposit.investment_id == investment_id
+    ).first()
+    if not deposit:
+        raise HTTPException(status_code=404, detail="Aporte não encontrado")
+    
+    db.delete(deposit)
+    db.commit()
+    return {"ok": True}

@@ -97,20 +97,36 @@ class TransactionResponse(BaseModel):
         from_attributes = True
 
 
+# === Investment Deposit ===
+class InvestmentDepositCreate(BaseModel):
+    amount: float = Field(..., gt=0, description="Valor do aporte")
+    deposit_date: date = Field(..., description="Data do aporte")
+
+
+class InvestmentDepositResponse(BaseModel):
+    id: int
+    investment_id: int
+    amount: float
+    deposit_date: date
+    created_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 # === Investment ===
 class InvestmentCreate(BaseModel):
     type: InvestmentType
     ticker: str = Field(..., max_length=20, min_length=1)
     name: str = Field(..., max_length=150, min_length=1)
-    quantity: Optional[float] = Field(default=None, ge=0)
-    avg_price: Optional[float] = Field(default=None, ge=0)
+    quantity: Optional[float] = Field(default=None, ge=0, description="DEPRECATED para caixinhas: use deposits")
+    avg_price: Optional[float] = Field(default=None, ge=0, description="DEPRECATED para caixinhas: sempre 1")
     purchase_date: Optional[date] = None
     rate_type: Optional[str] = Field(default=None, max_length=20)
     rate_value: Optional[float] = Field(default=None, ge=0)
     maturity_date: Optional[date] = None
-    # For caixinha: current value (quantity) and original amount applied
-    applied_amount: Optional[float] = Field(default=None, ge=0)
-    original_amount: Optional[float] = Field(default=None, ge=0)  # quanto foi realmente investido
+    # DEPRECATED: use deposits instead
+    original_amount: Optional[float] = Field(default=None, ge=0)
 
     @field_validator('ticker')
     @classmethod

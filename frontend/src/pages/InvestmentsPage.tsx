@@ -154,24 +154,35 @@ export default function InvestmentsPage() {
     setSubmitting(true);
     try {
       const isCaixinha = form.type === "CAIXINHA_NUBANK" || form.type === "CAIXINHA_TURBO_NUBANK";
-      await api.post("/investments", {
+      
+      // Cria o investimento
+      const investmentResponse = await api.post("/investments", {
         type: form.type,
         ticker: isCaixinha ? (form.type === "CAIXINHA_NUBANK" ? "CAIXINHA" : "CAIXINHA_TURBO") : form.ticker.toUpperCase(),
         name: isCaixinha ? TYPE_LABELS[form.type] : form.name,
-        quantity: parseFloat(form.quantity),
+        quantity: isCaixinha ? 0 : parseFloat(form.quantity),
         avg_price: isCaixinha ? 1 : parseFloat(form.avg_price),
-        purchase_date: form.purchase_date || null,
-        rate_type: form.rate_type || null,
-        rate_value: form.rate_value ? parseFloat(form.rate_value) : null,
-        maturity_date: form.maturity_date || null,
-        original_amount: isCaixinha && form.original_amount ? parseFloat(form.original_amount) : null,
+        purchase_date: !isCaixinha ? (form.purchase_date || null) : null,
+        rate_type: (isCaixinha || form.type === "RENDA_FIXA") ? form.rate_type || null : null,
+        rate_value: (isCaixinha || form.type === "RENDA_FIXA") ? (form.rate_value ? parseFloat(form.rate_value) : null) : null,
+        maturity_date: form.type === "RENDA_FIXA" ? (form.maturity_date || null) : null,
       });
+      
+      // Se é caixinha e tem quantidade, adiciona como deposit
+      if (isCaixinha && form.quantity) {
+        const investmentId = investmentResponse.data.id;
+        await api.post(`/investments/${investmentId}/deposits`, {
+          amount: parseFloat(form.quantity),
+          deposit_date: form.purchase_date || new Date().toISOString().slice(0, 10),
+        });
+      }
+      
       toast.success("Investimento adicionado");
       setShowForm(false);
       setForm({ type: "CRYPTO", ticker: "", name: "", quantity: "", avg_price: "", purchase_date: new Date().toISOString().slice(0, 10), rate_type: "", rate_value: "", maturity_date: "", original_amount: "" });
       fetchData();
-    } catch {
-      toast.error("Erro ao salvar");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Erro ao salvar");
     } finally {
       setSubmitting(false);
     }
@@ -714,22 +725,24 @@ export default function InvestmentsPage() {
               </>
             )}
 
-            <div className={`grid ${["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? "grid-cols-2" : "grid-cols-2"} gap-3`}>
+            <div className="space-y-1">
               {["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(form.type) ? (
                 <>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted ml-1">Valor aplicado (R$)</label>
-                    <input type="number" step="0.01" placeholder="Ex: 1000" value={form.original_amount} onChange={(e) => setForm({ ...form, original_amount: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted ml-1">Valor atual (R$)</label>
-                    <input type="number" step="0.01" placeholder="Ex: 1013" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-                  </div>
+                  <label className="text-xs text-muted ml-1">Valor do aporte (R$)</label>
+                  <input type="number" step="0.01" placeholder="Ex: 1000" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
                 </>
               ) : (
                 <>
-                  <input type="number" step="any" placeholder="Quantidade" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-                  <input type="number" step="0.01" placeholder="Preço médio (R$)" value={form.avg_price} onChange={(e) => setForm({ ...form, avg_price: e.target.value })} required className="px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted ml-1">Quantidade</label>
+                      <input type="number" step="any" placeholder="Qtd" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted ml-1">Preço médio (R$)</label>
+                      <input type="number" step="0.01" placeholder="Preço" value={form.avg_price} onChange={(e) => setForm({ ...form, avg_price: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+                    </div>
+                  </div>
                 </>
               )}
             </div>
