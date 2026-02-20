@@ -80,8 +80,8 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
                 data["current_value"] = qty * q["price"]
-        elif inv.type == InvestmentType.RENDA_FIXA:
-            # Para renda fixa normal, calcular baseado na taxa
+        elif inv.type in (InvestmentType.RENDA_FIXA, InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK):
+            # Calcular rendimento baseado na taxa CDI/SELIC/Prefixado
             rates = await get_selic_cdi_rates(db)
             annual_rate = 0
             if inv.rate_type == "SELIC":
@@ -98,9 +98,14 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                     daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
                     # Aplica a taxa para dias corridos (aproximação)
                     factor = (1 + daily_rate) ** days
-                    data["current_price"] = avg * factor
-                    data["current_value"] = qty * avg * factor
-        # Para caixinhas, o current_value já foi definido acima (é o quantity * avg_price)
+                    if is_caixinha:
+                        # Para caixinhas: calcula valor atual a partir do original_amount
+                        base = inv.original_amount or (qty * avg)
+                        data["current_value"] = base * factor
+                        data["current_price"] = factor  # fator de crescimento
+                    else:
+                        data["current_price"] = avg * factor
+                        data["current_value"] = qty * avg * factor
     except Exception as e:
         logger.error(f"Erro ao enriquecer investimento {inv.id} ({inv.ticker}): {str(e)}", exc_info=True)
 
@@ -130,18 +135,31 @@ async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db
     ).first()
     
     if existing:
-        # Calcula novo preço médio ponderado
-        old_total = (existing.quantity or 0) * (existing.avg_price or 0)
-        new_total = (data.quantity or 0) * (data.avg_price or 0)
-        new_quantity = (existing.quantity or 0) + (data.quantity or 0)
-        new_avg_price = (old_total + new_total) / new_quantity if new_quantity > 0 else 0
+        is_caixinha = data.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
         
-        # Atualiza posição existente
-        existing.quantity = new_quantity
-        existing.avg_price = new_avg_price
+        if is_caixinha:
+            # Para caixinhas: somar original_amount e atualizar quantity (valor atual)
+            existing.original_amount = (existing.original_amount or 0) + (data.original_amount or 0)
+            existing.quantity = (existing.quantity or 0) + (data.quantity or 0)
+            # avg_price permanece 1
+        else:
+            # Calcula novo preço médio ponderado
+            old_total = (existing.quantity or 0) * (existing.avg_price or 0)
+            new_total = (data.quantity or 0) * (data.avg_price or 0)
+            new_quantity = (existing.quantity or 0) + (data.quantity or 0)
+            new_avg_price = (old_total + new_total) / new_quantity if new_quantity > 0 else 0
+            existing.quantity = new_quantity
+            existing.avg_price = new_avg_price
+        
         # Mantém a data de compra mais antiga
         if data.purchase_date and (not existing.purchase_date or data.purchase_date < existing.purchase_date):
             existing.purchase_date = data.purchase_date
+        
+        # Atualiza rate_type/rate_value se fornecido
+        if data.rate_type:
+            existing.rate_type = data.rate_type
+        if data.rate_value:
+            existing.rate_value = data.rate_value
         
         db.commit()
         db.refresh(existing)
