@@ -35,8 +35,6 @@ const TYPE_LABELS: Record<string, string> = {
   RENDA_FIXA: "Renda Fixa",
   ACAO_BR: "Ações BR",
   ACAO_GLOBAL: "Ações Global",
-  CAIXINHA_NUBANK: "Caixinha Nubank",
-  CAIXINHA_TURBO_NUBANK: "Caixinha Turbo",
 };
 const TYPE_COLORS: Record<string, string> = {
   ALL: "#64748B",
@@ -45,8 +43,6 @@ const TYPE_COLORS: Record<string, string> = {
   RENDA_FIXA: "#10B981",
   ACAO_BR: "#3B82F6",
   ACAO_GLOBAL: "#EC4899",
-  CAIXINHA_NUBANK: "#820AD1",
-  CAIXINHA_TURBO_NUBANK: "#FF5733",
 };
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   ALL: <LayoutGrid className="w-5 h-5" />,
@@ -55,8 +51,6 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   RENDA_FIXA: <Landmark className="w-5 h-5" />,
   ACAO_BR: <BarChart3 className="w-5 h-5" />,
   ACAO_GLOBAL: <Globe className="w-5 h-5" />,
-  CAIXINHA_NUBANK: <Landmark className="w-5 h-5" />,
-  CAIXINHA_TURBO_NUBANK: <TrendingUp className="w-5 h-5" />,
 };
 
 // Cores para ativos individuais no gráfico
@@ -84,9 +78,7 @@ type Tab =
   | "FII"
   | "RENDA_FIXA"
   | "ACAO_BR"
-  | "ACAO_GLOBAL"
-  | "CAIXINHA_NUBANK"
-  | "CAIXINHA_TURBO_NUBANK";
+  | "ACAO_GLOBAL";
 
 type SortColumn =
   | "ticker"
@@ -103,7 +95,6 @@ export default function InvestmentsPage() {
   const [summary, setSummary] = useState<InvestmentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [consolidating, setConsolidating] = useState(false);
   const [tab, setTab] = useState<Tab>("ALL");
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
@@ -222,28 +213,17 @@ export default function InvestmentsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const isCaixinha =
-        form.type === "CAIXINHA_NUBANK" ||
-        form.type === "CAIXINHA_TURBO_NUBANK";
-
       // Cria o investimento
-      const investmentResponse = await api.post("/investments", {
+      await api.post("/investments", {
         type: form.type,
-        ticker: isCaixinha
-          ? form.type === "CAIXINHA_NUBANK"
-            ? "CAIXINHA"
-            : "CAIXINHA_TURBO"
-          : form.ticker.toUpperCase(),
-        name: isCaixinha ? TYPE_LABELS[form.type] : form.name,
-        quantity: isCaixinha ? 0 : parseFloat(form.quantity),
-        avg_price: isCaixinha ? 1 : parseFloat(form.avg_price),
-        purchase_date: !isCaixinha ? form.purchase_date || null : null,
-        rate_type:
-          isCaixinha || form.type === "RENDA_FIXA"
-            ? form.rate_type || null
-            : null,
+        ticker: form.ticker.toUpperCase(),
+        name: form.name,
+        quantity: parseFloat(form.quantity) || 0,
+        avg_price: parseFloat(form.avg_price) || 0,
+        purchase_date: form.purchase_date || null,
+        rate_type: form.type === "RENDA_FIXA" ? form.rate_type || null : null,
         rate_value:
-          isCaixinha || form.type === "RENDA_FIXA"
+          form.type === "RENDA_FIXA"
             ? form.rate_value
               ? parseFloat(form.rate_value)
               : null
@@ -251,16 +231,6 @@ export default function InvestmentsPage() {
         maturity_date:
           form.type === "RENDA_FIXA" ? form.maturity_date || null : null,
       });
-
-      // Se é caixinha e tem quantidade, adiciona como deposit
-      if (isCaixinha && form.quantity) {
-        const investmentId = investmentResponse.data.id;
-        await api.post(`/investments/${investmentId}/deposits`, {
-          amount: parseFloat(form.quantity),
-          deposit_date:
-            form.purchase_date || new Date().toISOString().slice(0, 10),
-        });
-      }
 
       toast.success("Investimento adicionado");
       setShowForm(false);
@@ -782,8 +752,6 @@ export default function InvestmentsPage() {
                 "RENDA_FIXA",
                 "ACAO_BR",
                 "ACAO_GLOBAL",
-                "CAIXINHA_NUBANK",
-                "CAIXINHA_TURBO_NUBANK",
               ] as Tab[]
             ).map((t) => (
               <button
@@ -974,10 +942,7 @@ export default function InvestmentsPage() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {[
-                            "CAIXINHA_NUBANK",
-                            "CAIXINHA_TURBO_NUBANK",
-                          ].includes(inv.type) && (
+                          {inv.type === "RENDA_FIXA" && (
                             <button
                               onClick={() => handleOpenTransactions(inv)}
                               className="p-1.5 text-muted hover:text-accent transition cursor-pointer"
@@ -1036,84 +1001,68 @@ export default function InvestmentsPage() {
               <option value="RENDA_FIXA">Renda Fixa</option>
               <option value="ACAO_BR">Ação Brasileira</option>
               <option value="ACAO_GLOBAL">Ação Global</option>
-              <option value="CAIXINHA_NUBANK">Caixinha Nubank</option>
-              <option value="CAIXINHA_TURBO_NUBANK">Caixinha Turbo</option>
             </select>
 
-            {!["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(
-              form.type,
-            ) && (
-              <>
-                <input
-                  type="text"
-                  placeholder={
-                    form.type === "CRYPTO"
-                      ? "Ticker (ex: BTC)"
-                      : form.type === "FII"
-                        ? "Ticker (ex: HGLG11)"
-                        : form.type === "ACAO_BR"
-                          ? "Ticker (ex: PETR4)"
-                          : form.type === "ACAO_GLOBAL"
-                            ? "Ticker (ex: AAPL34)"
-                            : "Nome do título"
-                  }
-                  value={form.ticker}
-                  onChange={(e) => setForm({ ...form, ticker: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-                <input
-                  type="text"
-                  placeholder="Nome"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                  className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </>
-            )}
+            <input
+              type="text"
+              placeholder={
+                form.type === "CRYPTO"
+                  ? "Ticker (ex: BTC)"
+                  : form.type === "FII"
+                    ? "Ticker (ex: HGLG11)"
+                    : form.type === "ACAO_BR"
+                      ? "Ticker (ex: PETR4)"
+                      : form.type === "ACAO_GLOBAL"
+                        ? "Ticker (ex: AAPL34)"
+                        : "Nome do título (ex: CDB Nubank)"
+              }
+              value={form.ticker}
+              onChange={(e) => setForm({ ...form, ticker: e.target.value })}
+              required
+              className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+            <input
+              type="text"
+              placeholder="Nome"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+              className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
+            />
 
-            <div className="space-y-1">
-              {["CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"].includes(
-                form.type,
-              ) ? null : (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted ml-1">
-                        Quantidade
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="Qtd"
-                        value={form.quantity}
-                        onChange={(e) =>
-                          setForm({ ...form, quantity: e.target.value })
-                        }
-                        required
-                        className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted ml-1">
-                        Preço médio (R$)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="Preço"
-                        value={form.avg_price}
-                        onChange={(e) =>
-                          setForm({ ...form, avg_price: e.target.value })
-                        }
-                        required
-                        className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted ml-1">
+                  {form.type === "RENDA_FIXA" ? "Valor aplicado (R$)" : "Quantidade"}
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder={form.type === "RENDA_FIXA" ? "Ex: 1000" : "Qtd"}
+                  value={form.quantity}
+                  onChange={(e) =>
+                    setForm({ ...form, quantity: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted ml-1">
+                  {form.type === "RENDA_FIXA" ? "Preço unitário (R$)" : "Preço médio (R$)"}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder={form.type === "RENDA_FIXA" ? "Ex: 1" : "Preço"}
+                  value={form.avg_price}
+                  onChange={(e) =>
+                    setForm({ ...form, avg_price: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -1130,9 +1079,7 @@ export default function InvestmentsPage() {
               />
             </div>
 
-            {(form.type === "RENDA_FIXA" ||
-              form.type === "CAIXINHA_NUBANK" ||
-              form.type === "CAIXINHA_TURBO_NUBANK") && (
+            {form.type === "RENDA_FIXA" && (
               <>
                 <select
                   value={form.rate_type}

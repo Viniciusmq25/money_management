@@ -131,7 +131,7 @@ async def dashboard_summary(
             total_current += qty * market_data["crypto"][inv.ticker]["price"]
         elif inv.type.value in ("FII", "ACAO_BR", "ACAO_GLOBAL") and "fii" in market_data and inv.ticker in market_data["fii"]:
             total_current += qty * market_data["fii"][inv.ticker]["price"]
-        elif inv.type.value in ("RENDA_FIXA", "CAIXINHA_NUBANK", "CAIXINHA_TURBO_NUBANK"):
+        elif inv.type.value == "RENDA_FIXA":
             # Reuse simplistic renda fixa logic from investments router if possible, or duplicate simplistic version here
             # For dashboard summary speed, we'll duplicate the simple logic or assume invested if calculation is complex
             # But let's try to match investments.py logic for consistency

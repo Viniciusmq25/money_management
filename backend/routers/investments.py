@@ -23,25 +23,26 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
     """Add current price and P&L data to an investment."""
     qty = inv.quantity or 0
     avg = inv.avg_price or 0
-    is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
     
-    # Para caixinhas com deposits: calcular a partir dos aportes
+    # RENDA_FIXA suporta depósitos/resgates (modelo caixinha) se houver movimentações registradas
+    has_deposits = False
     total_invested = 0
     current_value = None
     
-    if is_caixinha:
-        # Busca todos os deposits e redemptions desta caixinha
+    if inv.type == InvestmentType.RENDA_FIXA:
+        # Busca todos os deposits e redemptions desta RENDA_FIXA
         deposits = db.query(InvestmentDeposit).filter(InvestmentDeposit.investment_id == inv.id).order_by(InvestmentDeposit.deposit_date).all()
         redemptions = db.query(InvestmentRedemption).filter(InvestmentRedemption.investment_id == inv.id).order_by(InvestmentRedemption.redemption_date).all()
         
         if deposits or redemptions:
+            has_deposits = True
             # Cálculo com deposits e resgates
             total_invested = sum(d.amount for d in deposits) - sum(r.amount for r in redemptions)
             current_value = await _calculate_caixinha_value(deposits, redemptions, inv, db)
         else:
-            # Fallback para dados legados (original_amount)
+            # RENDA_FIXA sem depósitos: fallback para original_amount ou qty * avg
             total_invested = inv.original_amount if inv.original_amount else qty * avg
-            current_value = qty * avg
+            current_value = None  # Será calculado abaixo com base na taxa
     else:
         total_invested = qty * avg
         current_value = None
@@ -96,8 +97,8 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
                 data["current_price"] = q["price"]
                 data["change_24h"] = q.get("change_24h")
                 data["current_value"] = qty * q["price"]
-        elif inv.type == InvestmentType.RENDA_FIXA:
-            # Calcular rendimento baseado na taxa CDI/SELIC/Prefixado
+        elif inv.type == InvestmentType.RENDA_FIXA and not has_deposits:
+            # Calcular rendimento baseado na taxa CDI/SELIC/Prefixado (apenas se não usar sistema de depósitos)
             if inv.purchase_date:
                 rates = await get_selic_cdi_rates(db)
                 annual_rate = 0
@@ -195,21 +196,13 @@ async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db
     ).first()
     
     if existing:
-        is_caixinha = data.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
-        
-        if is_caixinha:
-            # Para caixinhas: somar original_amount e atualizar quantity (valor atual)
-            existing.original_amount = (existing.original_amount or 0) + (data.original_amount or 0)
-            existing.quantity = (existing.quantity or 0) + (data.quantity or 0)
-            # avg_price permanece 1
-        else:
-            # Calcula novo preço médio ponderado
-            old_total = (existing.quantity or 0) * (existing.avg_price or 0)
-            new_total = (data.quantity or 0) * (data.avg_price or 0)
-            new_quantity = (existing.quantity or 0) + (data.quantity or 0)
-            new_avg_price = (old_total + new_total) / new_quantity if new_quantity > 0 else 0
-            existing.quantity = new_quantity
-            existing.avg_price = new_avg_price
+        # Calcula novo preço médio ponderado
+        old_total = (existing.quantity or 0) * (existing.avg_price or 0)
+        new_total = (data.quantity or 0) * (data.avg_price or 0)
+        new_quantity = (existing.quantity or 0) + (data.quantity or 0)
+        new_avg_price = (old_total + new_total) / new_quantity if new_quantity > 0 else 0
+        existing.quantity = new_quantity
+        existing.avg_price = new_avg_price
         
         # Mantém a data de compra mais antiga
         if data.purchase_date and (not existing.purchase_date or data.purchase_date < existing.purchase_date):
@@ -415,9 +408,9 @@ async def create_deposit(investment_id: int, data: InvestmentDepositCreate, db: 
     if not inv:
         raise HTTPException(status_code=404, detail="Investimento não encontrado")
     
-    is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
+    is_caixinha = inv.type == InvestmentType.RENDA_FIXA
     if not is_caixinha:
-        raise HTTPException(status_code=400, detail="Deposits só podem ser adicionados a caixinhas")
+        raise HTTPException(status_code=400, detail="Deposits só podem ser adicionados a investimentos de Renda Fixa")
     
     deposit = InvestmentDeposit(
         investment_id=investment_id,
@@ -481,9 +474,9 @@ async def create_redemption(investment_id: int, data: InvestmentRedemptionCreate
     if not inv:
         raise HTTPException(status_code=404, detail="Investimento não encontrado")
     
-    is_caixinha = inv.type in (InvestmentType.CAIXINHA_NUBANK, InvestmentType.CAIXINHA_TURBO_NUBANK)
+    is_caixinha = inv.type == InvestmentType.RENDA_FIXA
     if not is_caixinha:
-        raise HTTPException(status_code=400, detail="Resgates suportados apenas em caixinhas por enquanto")
+        raise HTTPException(status_code=400, detail="Resgates suportados apenas em Renda Fixa por enquanto")
     
     redemption = InvestmentRedemption(
         investment_id=investment_id,

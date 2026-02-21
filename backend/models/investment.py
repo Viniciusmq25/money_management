@@ -10,8 +10,6 @@ class InvestmentType(str, enum.Enum):
     RENDA_FIXA = "RENDA_FIXA"
     ACAO_BR = "ACAO_BR"
     ACAO_GLOBAL = "ACAO_GLOBAL"
-    CAIXINHA_NUBANK = "CAIXINHA_NUBANK"
-    CAIXINHA_TURBO_NUBANK = "CAIXINHA_TURBO_NUBANK"
 
 
 class Investment(Base):
