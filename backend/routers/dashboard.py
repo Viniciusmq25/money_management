@@ -7,6 +7,8 @@ from auth import get_current_user
 from models.transaction import Transaction, TransactionType
 from models.category import Category
 from models.investment import Investment
+from models.investment_deposit import InvestmentDeposit
+from models.investment_redemption import InvestmentRedemption
 from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes
 from services.bcb import get_selic_cdi_rates
@@ -100,7 +102,35 @@ async def dashboard_summary(
 
     # Investment totals
     investments = db.query(Investment).all()
-    total_invested = sum((i.quantity or 0) * (i.avg_price or 0) for i in investments)
+
+    # Busca depósitos e resgates de RENDA_FIXA agrupados por investment_id
+    renda_fixa_ids = [i.id for i in investments if i.type.value == "RENDA_FIXA"]
+    deposits_by_inv: dict[int, list] = {}
+    redemptions_by_inv: dict[int, list] = {}
+    if renda_fixa_ids:
+        all_deposits = db.query(InvestmentDeposit).filter(
+            InvestmentDeposit.investment_id.in_(renda_fixa_ids)
+        ).order_by(InvestmentDeposit.deposit_date).all()
+        all_redemptions = db.query(InvestmentRedemption).filter(
+            InvestmentRedemption.investment_id.in_(renda_fixa_ids)
+        ).order_by(InvestmentRedemption.redemption_date).all()
+        for d in all_deposits:
+            deposits_by_inv.setdefault(d.investment_id, []).append(d)
+        for r in all_redemptions:
+            redemptions_by_inv.setdefault(r.investment_id, []).append(r)
+
+    def get_inv_invested(inv: Investment) -> float:
+        """Retorna o valor total investido para um investimento."""
+        if inv.type.value == "RENDA_FIXA":
+            deps = deposits_by_inv.get(inv.id, [])
+            reds = redemptions_by_inv.get(inv.id, [])
+            if deps or reds:
+                return sum(d.amount for d in deps) - sum(r.amount for r in reds)
+            # Sem depósitos: fallback para original_amount ou qty * avg
+            return inv.original_amount if inv.original_amount else (inv.quantity or 0) * (inv.avg_price or 0)
+        return (inv.quantity or 0) * (inv.avg_price or 0)
+
+    total_invested = sum(get_inv_invested(i) for i in investments)
 
     # Fetch market data
     market_data = {"rates": {"selic_annual": 0, "cdi_annual": 0}}
@@ -124,17 +154,16 @@ async def dashboard_summary(
     for inv in investments:
         qty = inv.quantity or 0
         avg = inv.avg_price or 0
-        invested = qty * avg
-        
+        invested = get_inv_invested(inv)
+
         # Determine current value logic
         if inv.type.value == "CRYPTO" and "crypto" in market_data and inv.ticker in market_data["crypto"]:
             total_current += qty * market_data["crypto"][inv.ticker]["price"]
         elif inv.type.value in ("FII", "ACAO_BR", "ACAO_GLOBAL") and "fii" in market_data and inv.ticker in market_data["fii"]:
             total_current += qty * market_data["fii"][inv.ticker]["price"]
         elif inv.type.value == "RENDA_FIXA":
-            # Reuse simplistic renda fixa logic from investments router if possible, or duplicate simplistic version here
-            # For dashboard summary speed, we'll duplicate the simple logic or assume invested if calculation is complex
-            # But let's try to match investments.py logic for consistency
+            deps = deposits_by_inv.get(inv.id, [])
+            reds = redemptions_by_inv.get(inv.id, [])
             current_val = invested
             try:
                 rates_data = market_data.get("rates", {})
@@ -145,13 +174,31 @@ async def dashboard_summary(
                     annual_rate = rates_data.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
                 elif inv.rate_type == "PREFIXADO":
                     annual_rate = inv.rate_value or 0
-                
-                if inv.purchase_date:
+
+                if deps and annual_rate > 0:
+                    # Cálculo por depósito (ex-caixinhas): cada aporte rende individualmente
+                    total_val = 0
+                    for dep in deps:
+                        days = (today - dep.deposit_date).days
+                        if days > 0:
+                            daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                            total_val += dep.amount * (1 + daily_rate) ** days
+                        else:
+                            total_val += dep.amount
+                    for red in reds:
+                        days = (today - red.redemption_date).days
+                        if days > 0:
+                            daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
+                            total_val -= red.amount * (1 + daily_rate) ** days
+                        else:
+                            total_val -= red.amount
+                    current_val = total_val
+                elif not deps and inv.purchase_date and annual_rate > 0:
+                    # Sem depósitos: usa qty * avg com rendimento desde purchase_date
                     days = (today - inv.purchase_date).days
                     if days > 0:
                         daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
-                        factor = (1 + daily_rate) ** days  # using days as rough proxy for business days or just days
-                        current_val = invested * factor
+                        current_val = invested * (1 + daily_rate) ** days
             except Exception as e:
                 logger.warning(f"Erro ao calcular valor atual de renda fixa para investimento {inv.id}: {str(e)}")
             total_current += current_val
