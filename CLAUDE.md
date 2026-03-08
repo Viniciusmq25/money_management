@@ -1,0 +1,1 @@
+# Leia SOUL.md dentro de .claude

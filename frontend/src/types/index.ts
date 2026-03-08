@@ -75,7 +75,8 @@ export interface ImportTransaction {
 }
 
 export interface DashboardData {
-  balance: number;
+  current_balance: number;
+  monthly_result: number;
   total_income: number;
   total_expense: number;
   total_invested: number;
@@ -98,4 +99,68 @@ export interface InvestmentSummary {
   profit_loss_pct: number;
   by_type: Record<string, { invested: number; current: number; count: number }>;
   positions: Investment[];
+}
+
+export interface AssistantMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantContext {
+  configured: boolean;
+  model: string;
+  suggested_prompts: string[];
+  snapshot: {
+    generated_at: string;
+    current_balance: number;
+    monthly_income: number;
+    monthly_expense: number;
+    monthly_result: number;
+    average_monthly_income: number;
+    average_monthly_expense: number;
+    average_monthly_result: number;
+    goals_total_target: number;
+    goals_total_current: number;
+    goals_total_gap: number;
+    goals: Array<{
+      name: string;
+      target_amount: number;
+      current_amount: number;
+      remaining_amount: number;
+      progress: number;
+      deadline: string | null;
+    }>;
+    top_expense_categories: Array<{
+      name: string;
+      total: number;
+      color: string;
+    }>;
+    recent_transactions: Array<{
+      description: string;
+      type: "INCOME" | "EXPENSE";
+      amount: number;
+      date: string;
+      category: string | null;
+    }>;
+    investments: {
+      total_invested: number;
+      total_current_value: number;
+      investment_change_pct: number;
+      positions_count: number;
+    };
+    purchase_scenario: null | {
+      amount: number;
+      description: string | null;
+      balance_after_purchase: number;
+      monthly_result_after_purchase: number;
+      purchase_vs_balance_pct: number | null;
+      purchase_vs_income_pct: number | null;
+    };
+  };
+}
+
+export interface AssistantChatResponse {
+  reply: string;
+  model: string;
+  snapshot: AssistantContext["snapshot"];
 }

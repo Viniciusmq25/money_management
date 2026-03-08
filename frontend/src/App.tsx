@@ -7,6 +7,7 @@ import InvestmentsPage from "./pages/InvestmentsPage";
 import GoalsPage from "./pages/GoalsPage";
 import ImportPage from "./pages/ImportPage";
 import ReportsPage from "./pages/ReportsPage";
+import AssistantPage from "./pages/AssistantPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("token");
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="goals" element={<GoalsPage />} />
         <Route path="import" element={<ImportPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="assistant" element={<AssistantPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

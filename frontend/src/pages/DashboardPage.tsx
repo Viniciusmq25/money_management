@@ -59,10 +59,11 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
-          title="Saldo do Mês"
-          value={formatCurrency(data.balance, showMoney)}
+          title="Saldo Atual"
+          value={formatCurrency(data.current_balance, showMoney)}
+          subtitle={`Resultado do mês: ${formatCurrency(data.monthly_result, showMoney)}`}
           icon={<Wallet className="w-5 h-5" />}
-          trend={data.balance >= 0 ? "up" : "down"}
+          trend={data.current_balance >= 0 ? "up" : "down"}
           color="accent"
         />
         <KpiCard

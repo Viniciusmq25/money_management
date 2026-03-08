@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, Literal
 from datetime import date, datetime
 from models.category import CategoryType
 from models.transaction import TransactionType, TransactionSource
@@ -278,7 +278,8 @@ class ImportConfirmRequest(BaseModel):
 
 # === Dashboard ===
 class DashboardSummary(BaseModel):
-    balance: float
+    current_balance: float
+    monthly_result: float
     total_income: float
     total_expense: float
     total_invested: float
@@ -288,6 +289,31 @@ class DashboardSummary(BaseModel):
     expense_by_category: list[dict]
     recent_transactions: list[TransactionResponse]
     market_data: dict
+
+
+class AssistantMessageInput(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
+class AssistantChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    history: list[AssistantMessageInput] = Field(default_factory=list, max_length=12)
+    purchase_amount: Optional[float] = Field(default=None, gt=0)
+    purchase_description: Optional[str] = Field(default=None, max_length=255)
+
+
+class AssistantContextResponse(BaseModel):
+    configured: bool
+    model: str
+    suggested_prompts: list[str]
+    snapshot: dict
+
+
+class AssistantChatResponse(BaseModel):
+    reply: str
+    model: str
+    snapshot: dict
 
 
 # === Binance Integration ===

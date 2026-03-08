@@ -7,7 +7,7 @@ import os
 
 from database import engine, Base, SessionLocal
 from models import *  # noqa: F401, F403
-from routers import auth, categories, transactions, investments, goals, imports, dashboard
+from routers import auth, categories, transactions, investments, goals, imports, dashboard, assistant
 from seed import seed_categories
 from sqlalchemy import text
 
@@ -77,6 +77,7 @@ app.include_router(investments.router)
 app.include_router(goals.router)
 app.include_router(imports.router)
 app.include_router(dashboard.router)
+app.include_router(assistant.router)
 
 # Health check
 @app.get("/api/health")

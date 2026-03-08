@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, extract, desc
+from sqlalchemy import func, extract, desc, case
 from datetime import date, timedelta
 from database import get_db
 from auth import get_current_user
@@ -26,6 +26,20 @@ async def dashboard_summary(
 ):
     today = date.today()
     month_start = today.replace(day=1)
+
+    current_balance = db.query(
+        func.coalesce(
+            func.sum(
+                case(
+                    (Transaction.type == TransactionType.INCOME, Transaction.amount),
+                    else_=-Transaction.amount,
+                )
+            ),
+            0,
+        )
+    ).filter(
+        Transaction.date <= today,
+    ).scalar()
 
     # Current month totals
     income = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
@@ -208,7 +222,8 @@ async def dashboard_summary(
     inv_change_pct = ((total_current - total_invested) / total_invested * 100) if total_invested > 0 else 0
 
     return {
-        "balance": float(income) - float(expense),
+        "current_balance": float(current_balance),
+        "monthly_result": float(income) - float(expense),
         "total_income": float(income),
         "total_expense": float(expense),
         "total_invested": total_invested,

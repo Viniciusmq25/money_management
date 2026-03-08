@@ -14,6 +14,7 @@ import {
   EyeOff,
   KeyRound,
   Loader2,
+  Bot,
 } from "lucide-react";
 import { useMoneyVisibility } from "../../contexts/MoneyVisibilityContext";
 import api from "../../api/client";
@@ -26,6 +27,7 @@ const links = [
   { to: "/goals", icon: Target, label: "Metas" },
   { to: "/import", icon: Upload, label: "Importar" },
   { to: "/reports", icon: BarChart3, label: "Relatórios" },
+  { to: "/assistant", icon: Bot, label: "Assistente IA" },
 ];
 
 interface SidebarProps {
