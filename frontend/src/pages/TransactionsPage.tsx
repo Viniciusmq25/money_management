@@ -6,10 +6,13 @@ import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { Transaction, Category } from "../types";
 import toast from "react-hot-toast";
 
+const PAGE_SIZE = 20;
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
@@ -17,6 +20,10 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("");
   const [filterCat, setFilterCat] = useState<string>("");
+  const [offset, setOffset] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const hasMore = transactions.length < totalCount;
 
   // Form state
   const [form, setForm] = useState({
@@ -27,28 +34,67 @@ export default function TransactionsPage() {
     category_id: "",
   });
 
-  const fetchData = async () => {
-    setLoading(true);
+  const buildFilterParams = () => {
+    const params: any = {};
+    if (filterType) params.type = filterType;
+    if (filterCat) params.category_id = filterCat;
+    if (search) params.search = search;
+    return params;
+  };
+
+  const fetchData = async (append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const params: any = {};
-      if (filterType) params.type = filterType;
-      if (filterCat) params.category_id = filterCat;
-      if (search) params.search = search;
-      const [txnRes, catRes] = await Promise.all([
-        api.get("/transactions", { params }),
-        api.get("/categories"),
+      const filterParams = buildFilterParams();
+      const currentOffset = append ? offset : 0;
+
+      const [txnRes, countRes, catRes] = await Promise.all([
+        api.get("/transactions", {
+          params: {
+            ...filterParams,
+            limit: PAGE_SIZE,
+            offset: currentOffset,
+          },
+        }),
+        api.get("/transactions/count", { params: filterParams }),
+        append ? Promise.resolve({ data: categories }) : api.get("/categories"),
       ]);
-      setTransactions(Array.isArray(txnRes.data) ? txnRes.data : []);
-      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
+
+      const incoming = Array.isArray(txnRes.data) ? txnRes.data : [];
+      const count = typeof countRes.data?.count === "number" ? countRes.data.count : 0;
+
+      setTransactions((prev) => (append ? [...prev, ...incoming] : incoming));
+      setTotalCount(count);
+      setOffset(currentOffset + incoming.length);
+      if (!append) {
+        setCategories(Array.isArray(catRes.data) ? catRes.data : []);
+      }
     } catch {
       toast.error("Erro ao carregar transações");
+    } finally {
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    fetchData();
+    setOffset(0);
+    fetchData(false);
   }, [filterType, filterCat, search]);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      fetchData(true);
+    }
+  };
 
   const resetForm = () => {
     setForm({ type: "EXPENSE", amount: "", description: "", date: new Date().toISOString().slice(0, 10), category_id: "" });
@@ -334,6 +380,25 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+
+          {hasMore && (
+            <div className="border-t border-border p-4 flex justify-center">
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="px-4 py-2.5 bg-surface hover:bg-surface-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Carregando...
+                  </>
+                ) : (
+                  "Ver mais"
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
