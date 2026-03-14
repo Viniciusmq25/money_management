@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Plus, Search, Pencil, Trash2, ArrowUpRight, ArrowDownRight, X, Loader2 } from "lucide-react";
 import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
@@ -177,6 +177,16 @@ export default function TransactionsPage() {
   };
 
   const filteredCats = categories.filter((c) => (form.type === "INCOME" ? c.type === "INCOME" : c.type === "EXPENSE"));
+  const groupedTransactions = transactions.reduce<Array<{ date: string; items: Transaction[] }>>((acc, txn) => {
+    const dateKey = txn.date.slice(0, 10);
+    const lastGroup = acc[acc.length - 1];
+    if (lastGroup && lastGroup.date === dateKey) {
+      lastGroup.items.push(txn);
+    } else {
+      acc.push({ date: dateKey, items: [txn] });
+    }
+    return acc;
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -329,53 +339,69 @@ export default function TransactionsPage() {
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Tipo</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Descrição</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Categoria</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Data</th>
                   <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Valor</th>
                   <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((txn) => (
-                  <tr key={txn.id} className="border-b border-border last:border-0 hover:bg-surface-hover transition">
-                    <td className="px-5 py-3">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                          txn.type === "INCOME" ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
-                        }`}
-                      >
-                        {txn.type === "INCOME" ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-sm text-white">{txn.description}</span>
-                      {txn.source === "IMPORT" && (
-                        <span className="ml-2 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Importado</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {txn.category ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: txn.category.color + "20", color: txn.category.color }}>
-                          {txn.category.name}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-sm text-muted">{formatDate(txn.date)}</td>
-                    <td className={`px-5 py-3 text-sm font-semibold text-right ${txn.type === "INCOME" ? "text-success" : "text-danger"}`}>
-                      {txn.type === "INCOME" ? "+" : "-"}{formatCurrency(txn.amount, showMoney)}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => handleEdit(txn)} className="p-1.5 text-muted hover:text-accent transition cursor-pointer">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(txn.id)} className="p-1.5 text-muted hover:text-danger transition cursor-pointer">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                {groupedTransactions.map((group, groupIndex) => (
+                  <Fragment key={group.date}>
+                    <tr>
+                      <td colSpan={5} className="px-5 pt-5 pb-2">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+                          {formatDate(group.date)}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {group.items.map((txn) => (
+                      <tr key={txn.id} className="border-b border-border hover:bg-surface-hover transition">
+                        <td className="px-5 py-3">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              txn.type === "INCOME" ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+                            }`}
+                          >
+                            {txn.type === "INCOME" ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="text-sm text-white">{txn.description}</span>
+                          {txn.source === "IMPORT" && (
+                            <span className="ml-2 text-xs bg-accent/20 text-accent px-1.5 py-0.5 rounded">Importado</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {txn.category ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: txn.category.color + "20", color: txn.category.color }}>
+                              {txn.category.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted">—</span>
+                          )}
+                        </td>
+                        <td className={`px-5 py-3 text-sm font-semibold text-right ${txn.type === "INCOME" ? "text-success" : "text-danger"}`}>
+                          {txn.type === "INCOME" ? "+" : "-"}{formatCurrency(txn.amount, showMoney)}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => handleEdit(txn)} className="p-1.5 text-muted hover:text-accent transition cursor-pointer">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDelete(txn.id)} className="p-1.5 text-muted hover:text-danger transition cursor-pointer">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {groupIndex < groupedTransactions.length - 1 && (
+                      <tr>
+                        <td colSpan={5} className="h-4" />
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
