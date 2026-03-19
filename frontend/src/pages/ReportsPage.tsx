@@ -526,48 +526,48 @@ export default function ReportsPage() {
                 cursor={{ fill: "rgba(107, 99, 255, 0.08)" }}
               />
 
-              {categoryInfo.incomeCategories.length > 0 || categoryInfo.expenseCategories.length > 0 ? (
-                <>
-                  {/* Income bars: category color when selected, solid green otherwise */}
-                  {categoryInfo.incomeCategories.map((cat, i) => (
-                    <Bar
-                      key={`inc_${cat.name}`}
-                      dataKey={`inc_${cat.name}`}
-                      stackId="income"
-                      maxBarSize={40}
-                      radius={i === categoryInfo.incomeCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                    >
-                      {stackedBarData.map((entry: any, index: number) => (
-                        <Cell
-                          key={index}
-                          fill={entry.month === selectedPeriod ? cat.color : "#10B981"}
-                        />
-                      ))}
-                    </Bar>
+              {/* Income bars: category color when selected, solid green otherwise */}
+              {categoryInfo.incomeCategories.map((cat, i) => (
+                <Bar
+                  key={`inc_${cat.name}`}
+                  dataKey={`inc_${cat.name}`}
+                  stackId="income"
+                  maxBarSize={40}
+                  radius={i === categoryInfo.incomeCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                >
+                  {stackedBarData.map((entry: any, index: number) => (
+                    <Cell
+                      key={index}
+                      fill={entry.month === selectedPeriod ? cat.color : "#10B981"}
+                    />
                   ))}
-                  {/* Expense bars: category color when selected, solid red otherwise */}
-                  {categoryInfo.expenseCategories.map((cat, i) => (
-                    <Bar
-                      key={`exp_${cat.name}`}
-                      dataKey={`exp_${cat.name}`}
-                      stackId="expense"
-                      maxBarSize={40}
-                      radius={i === categoryInfo.expenseCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                    >
-                      {stackedBarData.map((entry: any, index: number) => (
-                        <Cell
-                          key={index}
-                          fill={entry.month === selectedPeriod ? cat.color : "#EF4444"}
-                        />
-                      ))}
-                    </Bar>
+                </Bar>
+              ))}
+              {/* Fallback simple income bar when no category data */}
+              {categoryInfo.incomeCategories.length === 0 && (
+                <Bar dataKey="income" name="Receitas" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={40} />
+              )}
+
+              {/* Expense bars: category color when selected, solid red otherwise */}
+              {categoryInfo.expenseCategories.map((cat, i) => (
+                <Bar
+                  key={`exp_${cat.name}`}
+                  dataKey={`exp_${cat.name}`}
+                  stackId="expense"
+                  maxBarSize={40}
+                  radius={i === categoryInfo.expenseCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                >
+                  {stackedBarData.map((entry: any, index: number) => (
+                    <Cell
+                      key={index}
+                      fill={entry.month === selectedPeriod ? cat.color : "#EF4444"}
+                    />
                   ))}
-                </>
-              ) : (
-                <>
-                  <Bar dataKey="income" name="Receitas" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={40} />
-                  <Bar dataKey="expense" name="Despesas" fill="#EF4444" radius={[6, 6, 0, 0]} maxBarSize={40} />
-                </>
+                </Bar>
+              ))}
+              {/* Fallback simple expense bar when no category data */}
+              {categoryInfo.expenseCategories.length === 0 && (
+                <Bar dataKey="expense" name="Despesas" fill="#EF4444" radius={[6, 6, 0, 0]} maxBarSize={40} />
               )}
             </BarChart>
           </ResponsiveContainer>
