@@ -37,6 +37,20 @@ function formatMonthFull(monthStr: string): string {
   return `${months[parseInt(month) - 1]} ${year}`;
 }
 
+function formatDayShort(dateStr: string): string {
+  const [, month, day] = dateStr.split("-");
+  return `${day}/${month}`;
+}
+
+function formatDayFull(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function formatCompactCurrency(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -59,24 +73,35 @@ export default function ReportsPage() {
     months: 6,
   });
 
+  const startStr = toISODate(dateRange.start);
+  const endStr = toISODate(dateRange.end);
+
   useEffect(() => {
     setLoading(true);
     api
-      .get("/dashboard/summary", { params: { months: dateRange.months } })
+      .get("/dashboard/summary", {
+        params: {
+          start_date: startStr,
+          end_date: endStr,
+          granularity: viewMode === "days" ? "day" : "month",
+        },
+      })
       .then((r) => setData(r.data))
       .catch(() => toast.error("Erro ao carregar relatórios"))
       .finally(() => setLoading(false));
-  }, [dateRange.months]);
+  }, [startStr, endStr, viewMode]);
+
+  const isDaily = viewMode === "days";
 
   const barData = useMemo(() => {
     if (!data) return [];
     return data.monthly_trend.map((m: any) => ({
       ...m,
-      name: formatMonth(m.month),
-      fullName: formatMonthFull(m.month),
+      name: isDaily ? formatDayShort(m.month) : formatMonth(m.month),
+      fullName: isDaily ? formatDayFull(m.month) : formatMonthFull(m.month),
       saldo: m.income - m.expense,
     }));
-  }, [data]);
+  }, [data, isDaily]);
 
   const lineData = useMemo(() => {
     if (!data) return [];
@@ -84,11 +109,11 @@ export default function ReportsPage() {
     return data.monthly_trend.map((m: any) => {
       cumulative += m.income - m.expense;
       return {
-        name: formatMonth(m.month),
+        name: isDaily ? formatDayShort(m.month) : formatMonth(m.month),
         patrimonio: cumulative + (data.total_invested || 0),
       };
     });
-  }, [data]);
+  }, [data, isDaily]);
 
   const stats = useMemo(() => {
     if (!barData.length) return null;
@@ -550,7 +575,9 @@ export default function ReportsPage() {
       {/* Monthly Summary Table */}
       <div className="bg-primary-light rounded-2xl border border-border overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h3 className="text-base font-semibold text-white">Resumo Mensal</h3>
+          <h3 className="text-base font-semibold text-white">
+            {isDaily ? "Resumo Diário" : "Resumo Mensal"}
+          </h3>
           <button className="text-accent text-sm font-medium hover:underline cursor-pointer">
             Ver Todos os Meses
           </button>
@@ -560,7 +587,7 @@ export default function ReportsPage() {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
-                  Mês
+                  {isDaily ? "Dia" : "Mês"}
                 </th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
                   Receitas

@@ -22,10 +22,20 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"], dependencies=[De
 @router.get("/summary")
 async def dashboard_summary(
     months: int = Query(default=6, ge=1, le=24),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
+    granularity: str = Query(default="month"),
     db: Session = Depends(get_db),
 ):
     today = date.today()
-    month_start = today.replace(day=1)
+
+    # Determine date range: explicit dates take priority over months
+    if start_date and end_date:
+        range_start = date.fromisoformat(start_date)
+        range_end = date.fromisoformat(end_date)
+    else:
+        range_start = (today - timedelta(days=30 * months)).replace(day=1)
+        range_end = today
 
     current_balance = db.query(
         func.coalesce(
@@ -41,47 +51,69 @@ async def dashboard_summary(
         Transaction.date <= today,
     ).scalar()
 
-    # Current month totals
+    # Period totals (filtered by selected range)
     income = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
         Transaction.type == TransactionType.INCOME,
-        Transaction.date >= month_start,
-        Transaction.date <= today,
+        Transaction.date >= range_start,
+        Transaction.date <= range_end,
     ).scalar()
 
     expense = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
         Transaction.type == TransactionType.EXPENSE,
-        Transaction.date >= month_start,
-        Transaction.date <= today,
+        Transaction.date >= range_start,
+        Transaction.date <= range_end,
     ).scalar()
 
-    # Monthly trend (last N months)
-    trend_start = (today - timedelta(days=30 * months)).replace(day=1)
-    monthly_data = db.query(
-        extract("year", Transaction.date).label("year"),
-        extract("month", Transaction.date).label("month"),
-        Transaction.type,
-        func.sum(Transaction.amount).label("total"),
-    ).filter(
-        Transaction.date >= trend_start,
-    ).group_by(
-        extract("year", Transaction.date),
-        extract("month", Transaction.date),
-        Transaction.type,
-    ).all()
-
+    # Trend data grouped by granularity
     trend = {}
-    for row in monthly_data:
-        key = f"{int(row.year)}-{int(row.month):02d}"
-        if key not in trend:
-            trend[key] = {"month": key, "income": 0, "expense": 0}
-        if row.type == TransactionType.INCOME:
-            trend[key]["income"] = float(row.total)
-        else:
-            trend[key]["expense"] = float(row.total)
+    if granularity == "day":
+        daily_data = db.query(
+            Transaction.date.label("day"),
+            Transaction.type,
+            func.sum(Transaction.amount).label("total"),
+        ).filter(
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+        ).group_by(
+            Transaction.date,
+            Transaction.type,
+        ).all()
+
+        for row in daily_data:
+            key = row.day.isoformat()
+            if key not in trend:
+                trend[key] = {"month": key, "income": 0, "expense": 0}
+            if row.type == TransactionType.INCOME:
+                trend[key]["income"] = float(row.total)
+            else:
+                trend[key]["expense"] = float(row.total)
+    else:
+        monthly_data = db.query(
+            extract("year", Transaction.date).label("year"),
+            extract("month", Transaction.date).label("month"),
+            Transaction.type,
+            func.sum(Transaction.amount).label("total"),
+        ).filter(
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+        ).group_by(
+            extract("year", Transaction.date),
+            extract("month", Transaction.date),
+            Transaction.type,
+        ).all()
+
+        for row in monthly_data:
+            key = f"{int(row.year)}-{int(row.month):02d}"
+            if key not in trend:
+                trend[key] = {"month": key, "income": 0, "expense": 0}
+            if row.type == TransactionType.INCOME:
+                trend[key]["income"] = float(row.total)
+            else:
+                trend[key]["expense"] = float(row.total)
 
     monthly_trend = sorted(trend.values(), key=lambda x: x["month"])
 
-    # Expense breakdown by category for current month
+    # Expense breakdown by category for selected period
     cat_data = db.query(
         Category.name,
         Category.color,
@@ -89,8 +121,8 @@ async def dashboard_summary(
         func.sum(Transaction.amount).label("total"),
     ).join(Transaction, Transaction.category_id == Category.id).filter(
         Transaction.type == TransactionType.EXPENSE,
-        Transaction.date >= month_start,
-        Transaction.date <= today,
+        Transaction.date >= range_start,
+        Transaction.date <= range_end,
     ).group_by(Category.name, Category.color, Category.icon).order_by(desc("total")).all()
 
     expense_by_category = [
