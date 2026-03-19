@@ -237,7 +237,8 @@ export default function ReportsPage() {
 
   function handleBarClick(data: any) {
     if (data && data.activePayload && data.activePayload.length > 0) {
-      setSelectedPeriod(data.activePayload[0].payload.month);
+      const month = data.activePayload[0].payload.month;
+      setSelectedPeriod((prev) => (prev === month ? null : month));
     }
   }
 
@@ -259,20 +260,29 @@ export default function ReportsPage() {
   const renderBarTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
 
-    if (!selectedPeriod) {
+    const hoveredMonth = payload[0]?.payload?.month;
+    const isSelectedBar = selectedPeriod && hoveredMonth === selectedPeriod;
+
+    if (!isSelectedBar) {
+      // Simple tooltip: show total income and expense
+      const income = payload[0]?.payload?.income || 0;
+      const expense = payload[0]?.payload?.expense || 0;
       return (
         <div style={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, padding: "10px 14px", color: "#F1F5F9" }}>
           <p style={{ marginBottom: 6, fontWeight: 600, fontSize: 13 }}>{label}</p>
-          {payload.map((item: any) => (
-            <div key={item.dataKey} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 2 }}>
-              <span style={{ color: item.color, fontSize: 10 }}>●</span>
-              <span>{item.name}: {formatCurrency(item.value, showMoney)}</span>
-            </div>
-          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 2 }}>
+            <span style={{ color: "#10B981", fontSize: 10 }}>●</span>
+            <span>Receitas: {formatCurrency(income, showMoney)}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+            <span style={{ color: "#EF4444", fontSize: 10 }}>●</span>
+            <span>Despesas: {formatCurrency(expense, showMoney)}</span>
+          </div>
         </div>
       );
     }
 
+    // Detailed category tooltip for selected bar
     const incomeItems = payload.filter((p: any) => p.dataKey.startsWith("inc_") && p.value > 0);
     const expenseItems = payload.filter((p: any) => p.dataKey.startsWith("exp_") && p.value > 0);
 
@@ -287,7 +297,7 @@ export default function ReportsPage() {
             {incomeItems.map((item: any) => (
               <div key={item.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12, marginBottom: 2 }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ color: item.color, fontSize: 10 }}>●</span>
+                  <span style={{ color: item.fill, fontSize: 10 }}>●</span>
                   {item.dataKey.replace("inc_", "")}
                 </span>
                 <span style={{ fontWeight: 500 }}>{formatCurrency(item.value, showMoney)}</span>
@@ -301,7 +311,7 @@ export default function ReportsPage() {
             {expenseItems.map((item: any) => (
               <div key={item.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12, marginBottom: 2 }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ color: item.color, fontSize: 10 }}>●</span>
+                  <span style={{ color: item.fill, fontSize: 10 }}>●</span>
                   {item.dataKey.replace("exp_", "")}
                 </span>
                 <span style={{ fontWeight: 500 }}>{formatCurrency(item.value, showMoney)}</span>
@@ -469,25 +479,27 @@ export default function ReportsPage() {
               Receitas vs Despesas
             </h3>
             <div className="flex items-center gap-4 text-xs text-muted">
-              {!selectedPeriod ? (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-success" />
-                    <span>Receitas</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-danger" />
-                    <span>Despesas</span>
-                  </div>
-                </>
-              ) : (
-                <span className="text-muted/70 text-xs italic">Clique nas barras para alternar período</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-success" />
+                <span>Receitas</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-danger" />
+                <span>Despesas</span>
+              </div>
+              {selectedPeriod && (
+                <button
+                  onClick={() => setSelectedPeriod(null)}
+                  className="text-accent hover:underline cursor-pointer ml-1"
+                >
+                  Limpar
+                </button>
               )}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart
-              data={selectedPeriod ? stackedBarData : barData}
+              data={stackedBarData}
               barGap={4}
               onClick={handleBarClick}
               style={{ cursor: "pointer" }}
@@ -514,61 +526,49 @@ export default function ReportsPage() {
                 cursor={{ fill: "rgba(107, 99, 255, 0.08)" }}
               />
 
-              {/* Simple mode: two bars */}
-              {!selectedPeriod && (
-                <Bar
-                  dataKey="income"
-                  name="Receitas"
-                  fill="#10B981"
-                  radius={[6, 6, 0, 0]}
-                  maxBarSize={40}
-                />
-              )}
-              {!selectedPeriod && (
-                <Bar
-                  dataKey="expense"
-                  name="Despesas"
-                  fill="#EF4444"
-                  radius={[6, 6, 0, 0]}
-                  maxBarSize={40}
-                />
-              )}
-
-              {/* Stacked mode: bars subdivided by category */}
-              {selectedPeriod && categoryInfo.incomeCategories.map((cat, i) => (
-                <Bar
-                  key={`inc_${cat.name}`}
-                  dataKey={`inc_${cat.name}`}
-                  stackId="income"
-                  fill={cat.color}
-                  maxBarSize={40}
-                  radius={i === categoryInfo.incomeCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                >
-                  {stackedBarData.map((entry: any, index: number) => (
-                    <Cell
-                      key={index}
-                      opacity={entry.month === selectedPeriod ? 1 : 0.35}
-                    />
+              {categoryInfo.incomeCategories.length > 0 || categoryInfo.expenseCategories.length > 0 ? (
+                <>
+                  {/* Income bars: category color when selected, solid green otherwise */}
+                  {categoryInfo.incomeCategories.map((cat, i) => (
+                    <Bar
+                      key={`inc_${cat.name}`}
+                      dataKey={`inc_${cat.name}`}
+                      stackId="income"
+                      maxBarSize={40}
+                      radius={i === categoryInfo.incomeCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    >
+                      {stackedBarData.map((entry: any, index: number) => (
+                        <Cell
+                          key={index}
+                          fill={entry.month === selectedPeriod ? cat.color : "#10B981"}
+                        />
+                      ))}
+                    </Bar>
                   ))}
-                </Bar>
-              ))}
-              {selectedPeriod && categoryInfo.expenseCategories.map((cat, i) => (
-                <Bar
-                  key={`exp_${cat.name}`}
-                  dataKey={`exp_${cat.name}`}
-                  stackId="expense"
-                  fill={cat.color}
-                  maxBarSize={40}
-                  radius={i === categoryInfo.expenseCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                >
-                  {stackedBarData.map((entry: any, index: number) => (
-                    <Cell
-                      key={index}
-                      opacity={entry.month === selectedPeriod ? 1 : 0.35}
-                    />
+                  {/* Expense bars: category color when selected, solid red otherwise */}
+                  {categoryInfo.expenseCategories.map((cat, i) => (
+                    <Bar
+                      key={`exp_${cat.name}`}
+                      dataKey={`exp_${cat.name}`}
+                      stackId="expense"
+                      maxBarSize={40}
+                      radius={i === categoryInfo.expenseCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    >
+                      {stackedBarData.map((entry: any, index: number) => (
+                        <Cell
+                          key={index}
+                          fill={entry.month === selectedPeriod ? cat.color : "#EF4444"}
+                        />
+                      ))}
+                    </Bar>
                   ))}
-                </Bar>
-              ))}
+                </>
+              ) : (
+                <>
+                  <Bar dataKey="income" name="Receitas" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                  <Bar dataKey="expense" name="Despesas" fill="#EF4444" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                </>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>
