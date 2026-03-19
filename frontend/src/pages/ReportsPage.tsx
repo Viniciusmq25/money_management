@@ -63,6 +63,7 @@ export default function ReportsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"days" | "months">("months");
+  const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
   const { showMoney } = useMoneyVisibility();
 
   const today = new Date();
@@ -78,6 +79,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     setLoading(true);
+    setSelectedPeriod(null);
     api
       .get("/dashboard/summary", {
         params: {
@@ -164,9 +166,80 @@ export default function ReportsPage() {
     }));
   }, [data]);
 
-  const pieTotal = useMemo(() => {
-    return pieData.reduce((acc: number, e: any) => acc + e.value, 0);
-  }, [pieData]);
+  // Collect all unique categories from trend_by_category
+  const categoryInfo = useMemo(() => {
+    if (!data?.trend_by_category) return { incomeCategories: [] as { name: string; color: string }[], expenseCategories: [] as { name: string; color: string }[] };
+
+    const incomeCats = new Map<string, string>();
+    const expenseCats = new Map<string, string>();
+
+    for (const period of Object.values(data.trend_by_category) as any[]) {
+      for (const cat of period.income) {
+        incomeCats.set(cat.name, cat.color);
+      }
+      for (const cat of period.expense) {
+        expenseCats.set(cat.name, cat.color);
+      }
+    }
+
+    return {
+      incomeCategories: Array.from(incomeCats.entries()).map(([name, color]) => ({ name, color })),
+      expenseCategories: Array.from(expenseCats.entries()).map(([name, color]) => ({ name, color })),
+    };
+  }, [data]);
+
+  // Bar data with category keys for stacked mode
+  const stackedBarData = useMemo(() => {
+    if (!data?.trend_by_category || (!categoryInfo.incomeCategories.length && !categoryInfo.expenseCategories.length)) return barData;
+
+    return barData.map((row: any) => {
+      const periodCats = data.trend_by_category[row.month] || { income: [], expense: [] };
+      const newRow = { ...row };
+
+      for (const cat of categoryInfo.incomeCategories) {
+        const found = periodCats.income.find((c: any) => c.name === cat.name);
+        newRow[`inc_${cat.name}`] = found ? found.value : 0;
+      }
+
+      for (const cat of categoryInfo.expenseCategories) {
+        const found = periodCats.expense.find((c: any) => c.name === cat.name);
+        newRow[`exp_${cat.name}`] = found ? found.value : 0;
+      }
+
+      return newRow;
+    });
+  }, [barData, data, categoryInfo]);
+
+  // Pie data adapted to selected period
+  const activePieData = useMemo(() => {
+    if (!selectedPeriod || !data?.trend_by_category?.[selectedPeriod]) {
+      return pieData;
+    }
+
+    const periodExpenses = data.trend_by_category[selectedPeriod].expense as any[];
+    if (!periodExpenses.length) return [];
+    const total = periodExpenses.reduce((acc: number, e: any) => acc + e.value, 0);
+    return periodExpenses.map((e: any) => ({
+      ...e,
+      percent: total > 0 ? (e.value / total) * 100 : 0,
+    }));
+  }, [selectedPeriod, data, pieData]);
+
+  const activePieTotal = useMemo(() => {
+    return activePieData.reduce((acc: number, e: any) => acc + e.value, 0);
+  }, [activePieData]);
+
+  // Display name for selected period
+  const selectedPeriodName = useMemo(() => {
+    if (!selectedPeriod) return null;
+    return isDaily ? formatDayFull(selectedPeriod) : formatMonthFull(selectedPeriod);
+  }, [selectedPeriod, isDaily]);
+
+  function handleBarClick(data: any) {
+    if (data && data.activePayload && data.activePayload.length > 0) {
+      setSelectedPeriod(data.activePayload[0].payload.month);
+    }
+  }
 
   function handleDownload() {
     if (!barData.length) return;
@@ -181,6 +254,64 @@ export default function ReportsPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  // Custom tooltip for bar chart
+  const renderBarTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+
+    if (!selectedPeriod) {
+      return (
+        <div style={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, padding: "10px 14px", color: "#F1F5F9" }}>
+          <p style={{ marginBottom: 6, fontWeight: 600, fontSize: 13 }}>{label}</p>
+          {payload.map((item: any) => (
+            <div key={item.dataKey} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 2 }}>
+              <span style={{ color: item.color, fontSize: 10 }}>●</span>
+              <span>{item.name}: {formatCurrency(item.value, showMoney)}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    const incomeItems = payload.filter((p: any) => p.dataKey.startsWith("inc_") && p.value > 0);
+    const expenseItems = payload.filter((p: any) => p.dataKey.startsWith("exp_") && p.value > 0);
+
+    if (!incomeItems.length && !expenseItems.length) return null;
+
+    return (
+      <div style={{ background: "#2A2D4A", border: "1px solid #3B3F5C", borderRadius: 12, padding: "12px 16px", color: "#F1F5F9", maxWidth: 300 }}>
+        <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>{label}</p>
+        {incomeItems.length > 0 && (
+          <div style={{ marginBottom: expenseItems.length ? 8 : 0 }}>
+            <p style={{ fontSize: 11, color: "#10B981", fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Receitas</p>
+            {incomeItems.map((item: any) => (
+              <div key={item.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12, marginBottom: 2 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: item.color, fontSize: 10 }}>●</span>
+                  {item.dataKey.replace("inc_", "")}
+                </span>
+                <span style={{ fontWeight: 500 }}>{formatCurrency(item.value, showMoney)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {expenseItems.length > 0 && (
+          <div>
+            <p style={{ fontSize: 11, color: "#EF4444", fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Despesas</p>
+            {expenseItems.map((item: any) => (
+              <div key={item.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12, marginBottom: 2 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: item.color, fontSize: 10 }}>●</span>
+                  {item.dataKey.replace("exp_", "")}
+                </span>
+                <span style={{ fontWeight: 500 }}>{formatCurrency(item.value, showMoney)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -338,18 +469,29 @@ export default function ReportsPage() {
               Receitas vs Despesas
             </h3>
             <div className="flex items-center gap-4 text-xs text-muted">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-success" />
-                <span>Receitas</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-danger" />
-                <span>Despesas</span>
-              </div>
+              {!selectedPeriod ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-success" />
+                    <span>Receitas</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-danger" />
+                    <span>Despesas</span>
+                  </div>
+                </>
+              ) : (
+                <span className="text-muted/70 text-xs italic">Clique nas barras para alternar período</span>
+              )}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData} barGap={4}>
+            <BarChart
+              data={selectedPeriod ? stackedBarData : barData}
+              barGap={4}
+              onClick={handleBarClick}
+              style={{ cursor: "pointer" }}
+            >
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="#3B3F5C"
@@ -368,44 +510,95 @@ export default function ReportsPage() {
                 tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                contentStyle={{
-                  background: "#2A2D4A",
-                  border: "1px solid #3B3F5C",
-                  borderRadius: 12,
-                  color: "#F1F5F9",
-                }}
-                formatter={(v: number) => formatCurrency(v, showMoney)}
+                content={renderBarTooltip}
                 cursor={{ fill: "rgba(107, 99, 255, 0.08)" }}
               />
-              <Bar
-                dataKey="income"
-                name="Receitas"
-                fill="#10B981"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={40}
-              />
-              <Bar
-                dataKey="expense"
-                name="Despesas"
-                fill="#EF4444"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={40}
-              />
+
+              {/* Simple mode: two bars */}
+              {!selectedPeriod && (
+                <Bar
+                  dataKey="income"
+                  name="Receitas"
+                  fill="#10B981"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={40}
+                />
+              )}
+              {!selectedPeriod && (
+                <Bar
+                  dataKey="expense"
+                  name="Despesas"
+                  fill="#EF4444"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={40}
+                />
+              )}
+
+              {/* Stacked mode: bars subdivided by category */}
+              {selectedPeriod && categoryInfo.incomeCategories.map((cat, i) => (
+                <Bar
+                  key={`inc_${cat.name}`}
+                  dataKey={`inc_${cat.name}`}
+                  stackId="income"
+                  fill={cat.color}
+                  maxBarSize={40}
+                  radius={i === categoryInfo.incomeCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                >
+                  {stackedBarData.map((entry: any, index: number) => (
+                    <Cell
+                      key={index}
+                      opacity={entry.month === selectedPeriod ? 1 : 0.35}
+                    />
+                  ))}
+                </Bar>
+              ))}
+              {selectedPeriod && categoryInfo.expenseCategories.map((cat, i) => (
+                <Bar
+                  key={`exp_${cat.name}`}
+                  dataKey={`exp_${cat.name}`}
+                  stackId="expense"
+                  fill={cat.color}
+                  maxBarSize={40}
+                  radius={i === categoryInfo.expenseCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                >
+                  {stackedBarData.map((entry: any, index: number) => (
+                    <Cell
+                      key={index}
+                      opacity={entry.month === selectedPeriod ? 1 : 0.35}
+                    />
+                  ))}
+                </Bar>
+              ))}
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Top Spending Donut Chart */}
+        {/* Distribution Donut Chart */}
         <div className="lg:col-span-2 bg-primary-light rounded-2xl p-5 border border-border">
-          <h3 className="text-base font-semibold text-white mb-4">
-            Top Gastos
-          </h3>
-          {pieData.length > 0 ? (
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-white">
+                Distribuição
+              </h3>
+              {selectedPeriodName && (
+                <p className="text-xs text-muted mt-0.5">{selectedPeriodName}</p>
+              )}
+            </div>
+            {selectedPeriod && (
+              <button
+                onClick={() => setSelectedPeriod(null)}
+                className="text-xs text-accent hover:underline cursor-pointer"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          {activePieData.length > 0 ? (
             <div className="flex flex-col items-center">
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={activePieData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -414,7 +607,7 @@ export default function ReportsPage() {
                     dataKey="value"
                     strokeWidth={0}
                   >
-                    {pieData.map((entry: any, i: number) => (
+                    {activePieData.map((entry: any, i: number) => (
                       <Cell
                         key={i}
                         fill={entry.color}
@@ -438,7 +631,7 @@ export default function ReportsPage() {
                               fontWeight={700}
                             >
                               {showMoney
-                                ? formatCompactCurrency(pieTotal)
+                                ? formatCompactCurrency(activePieTotal)
                                 : "R$ •••••"}
                             </text>
                             <text
@@ -479,7 +672,7 @@ export default function ReportsPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="w-full space-y-2.5 mt-2">
-                {pieData.map((cat: any, i: number) => (
+                {activePieData.map((cat: any, i: number) => (
                   <div
                     key={i}
                     className="flex items-center justify-between text-sm"
@@ -492,7 +685,10 @@ export default function ReportsPage() {
                       <span className="text-muted">{cat.name}</span>
                     </div>
                     <span className="text-white font-semibold">
-                      {cat.percent.toFixed(0)}%
+                      {showMoney ? formatCompactCurrency(cat.value) : "R$ •••••"}
+                      <span className="text-muted font-normal ml-1.5">
+                        {cat.percent.toFixed(0)}%
+                      </span>
                     </span>
                   </div>
                 ))}
@@ -599,24 +795,14 @@ export default function ReportsPage() {
                   Saldo
                 </th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
-                  Status
+                  Maior Gasto
                 </th>
               </tr>
             </thead>
             <tbody>
               {barData.map((row: any, i: number) => {
-                const status =
-                  row.saldo > 0
-                    ? row.saldo > row.income * 0.3
-                      ? "META ATINGIDA"
-                      : "NORMAL"
-                    : "GASTO EXCESSIVO";
-                const statusStyle =
-                  status === "META ATINGIDA"
-                    ? "bg-success/15 text-success"
-                    : status === "NORMAL"
-                    ? "bg-muted/15 text-muted"
-                    : "bg-danger/15 text-danger";
+                const periodCats = data.trend_by_category?.[row.month];
+                const topExpense = periodCats?.expense?.[0];
                 return (
                   <tr
                     key={i}
@@ -640,11 +826,23 @@ export default function ReportsPage() {
                       {formatCurrency(row.saldo, showMoney)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <span
-                        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${statusStyle}`}
-                      >
-                        {status}
-                      </span>
+                      {topExpense ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+                          style={{
+                            backgroundColor: `${topExpense.color}20`,
+                            color: topExpense.color,
+                          }}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: topExpense.color }}
+                          />
+                          {topExpense.name}
+                        </span>
+                      ) : (
+                        <span className="text-muted text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 );

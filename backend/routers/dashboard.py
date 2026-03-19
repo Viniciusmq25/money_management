@@ -130,6 +130,70 @@ async def dashboard_summary(
         for row in cat_data
     ]
 
+    # Category breakdown per period (for interactive charts)
+    trend_by_category: dict[str, dict] = {}
+    if granularity == "day":
+        cat_trend_data = db.query(
+            Transaction.date.label("day"),
+            Transaction.type,
+            Category.name,
+            Category.color,
+            func.sum(Transaction.amount).label("total"),
+        ).join(Category, Transaction.category_id == Category.id).filter(
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+        ).group_by(
+            Transaction.date,
+            Transaction.type,
+            Category.name,
+            Category.color,
+        ).all()
+
+        for row in cat_trend_data:
+            key = row.day.isoformat()
+            if key not in trend_by_category:
+                trend_by_category[key] = {"income": [], "expense": []}
+            bucket = "income" if row.type == TransactionType.INCOME else "expense"
+            trend_by_category[key][bucket].append({
+                "name": row.name,
+                "color": row.color,
+                "value": float(row.total),
+            })
+    else:
+        cat_trend_data = db.query(
+            extract("year", Transaction.date).label("year"),
+            extract("month", Transaction.date).label("month"),
+            Transaction.type,
+            Category.name,
+            Category.color,
+            func.sum(Transaction.amount).label("total"),
+        ).join(Category, Transaction.category_id == Category.id).filter(
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+        ).group_by(
+            extract("year", Transaction.date),
+            extract("month", Transaction.date),
+            Transaction.type,
+            Category.name,
+            Category.color,
+        ).all()
+
+        for row in cat_trend_data:
+            key = f"{int(row.year)}-{int(row.month):02d}"
+            if key not in trend_by_category:
+                trend_by_category[key] = {"income": [], "expense": []}
+            bucket = "income" if row.type == TransactionType.INCOME else "expense"
+            trend_by_category[key][bucket].append({
+                "name": row.name,
+                "color": row.color,
+                "value": float(row.total),
+            })
+
+    # Sort each period's categories by value desc
+    for period_data in trend_by_category.values():
+        period_data["income"].sort(key=lambda x: x["value"], reverse=True)
+        period_data["expense"].sort(key=lambda x: x["value"], reverse=True)
+
     # Recent transactions
     recent = db.query(Transaction).options(
         joinedload(Transaction.category)
@@ -263,6 +327,7 @@ async def dashboard_summary(
         "investment_change_pct": round(inv_change_pct, 2),
         "monthly_trend": monthly_trend,
         "expense_by_category": expense_by_category,
+        "trend_by_category": trend_by_category,
         "recent_transactions": recent_list,
         "market_data": market_data,
     }
