@@ -33,9 +33,10 @@ const links = [
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  collapsed?: boolean;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarProps) {
   const navigate = useNavigate();
   const { showMoney, toggleMoneyVisibility } = useMoneyVisibility();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -96,22 +97,26 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside
         className={`
           fixed md:static inset-y-0 left-0 z-50
-          w-64 flex-col bg-primary-light border-r border-border
-          transform transition-transform duration-300 ease-in-out
+          flex-col bg-primary-light border-r border-border
+          transform transition-all duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0 md:flex
+          ${collapsed ? "md:w-20" : "md:w-64"}
+          ${!collapsed ? "w-64" : "w-64"}
         `}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-6 py-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
+        <div className={`flex items-center justify-between px-6 py-6 border-b border-border transition-all duration-300 ${collapsed ? "md:px-3 md:justify-center" : ""}`}>
+          <div className={`flex items-center gap-3 ${collapsed ? "md:gap-0" : ""}`}>
+            <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0">
               <DollarSign className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-white leading-tight">Money</h1>
-              <p className="text-xs text-muted">Management</p>
-            </div>
+            {!collapsed && (
+              <div>
+                <h1 className="text-lg font-bold text-white leading-tight">Money</h1>
+                <p className="text-xs text-muted">Management</p>
+              </div>
+            )}
           </div>
           {/* Close button for mobile */}
           <button
@@ -132,14 +137,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               onClick={handleNavClick}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  collapsed ? "md:px-2 md:justify-center" : ""
+                } ${
                   isActive
                     ? "bg-accent text-white shadow-lg shadow-accent/20"
                     : "text-muted hover:text-white hover:bg-surface-hover"
                 }`
               }
+              title={collapsed ? link.label : ""}
             >
-              <link.icon className="w-5 h-5" />
-              {link.label}
+              <link.icon className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && link.label}
             </NavLink>
           ))}
         </nav>
@@ -148,25 +156,33 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="p-3 border-t border-border space-y-1">
           <button
             onClick={toggleMoneyVisibility}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer"
+            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer ${
+              collapsed ? "md:px-2 md:justify-center" : ""
+            }`}
             title={showMoney ? "Ocultar valores" : "Mostrar valores"}
           >
-            {showMoney ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            {showMoney ? "Ocultar Valores" : "Mostrar Valores"}
+            {showMoney ? <EyeOff className="w-5 h-5 flex-shrink-0" /> : <Eye className="w-5 h-5 flex-shrink-0" />}
+            {!collapsed && (showMoney ? "Ocultar Valores" : "Mostrar Valores")}
           </button>
           <button
             onClick={() => setShowPasswordModal(true)}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer"
+            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer ${
+              collapsed ? "md:px-2 md:justify-center" : ""
+            }`}
+            title="Alterar Senha"
           >
-            <KeyRound className="w-5 h-5" />
-            Alterar Senha
+            <KeyRound className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && "Alterar Senha"}
           </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-danger hover:bg-surface-hover transition-all duration-200 cursor-pointer"
+            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-danger hover:bg-surface-hover transition-all duration-200 cursor-pointer ${
+              collapsed ? "md:px-2 md:justify-center" : ""
+            }`}
+            title="Sair"
           >
-            <LogOut className="w-5 h-5" />
-            Sair
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && "Sair"}
           </button>
         </div>
       </aside>
