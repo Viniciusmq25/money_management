@@ -136,14 +136,11 @@ class InvestmentCreate(BaseModel):
     type: InvestmentType
     ticker: str = Field(..., max_length=20, min_length=1)
     name: str = Field(..., max_length=150, min_length=1)
-    quantity: Optional[float] = Field(default=None, ge=0, description="DEPRECATED para caixinhas: use deposits")
-    avg_price: Optional[float] = Field(default=None, ge=0, description="DEPRECATED para caixinhas: sempre 1")
-    purchase_date: Optional[date] = None
+    quantity: Optional[float] = Field(default=0, ge=0)
+    avg_price: Optional[float] = Field(default=0, ge=0)
     rate_type: Optional[str] = Field(default=None, max_length=20)
     rate_value: Optional[float] = Field(default=None, ge=0)
     maturity_date: Optional[date] = None
-    # DEPRECATED: use deposits instead
-    original_amount: Optional[float] = Field(default=None, ge=0)
 
     @field_validator('ticker')
     @classmethod
@@ -175,11 +172,9 @@ class InvestmentUpdate(BaseModel):
     name: Optional[str] = None
     quantity: Optional[float] = None
     avg_price: Optional[float] = None
-    purchase_date: Optional[date] = None
     rate_type: Optional[str] = None
     rate_value: Optional[float] = None
     maturity_date: Optional[date] = None
-    original_amount: Optional[float] = None
 
 
 class InvestmentResponse(BaseModel):
@@ -189,12 +184,12 @@ class InvestmentResponse(BaseModel):
     name: str
     quantity: Optional[float] = None
     avg_price: Optional[float] = None
-    purchase_date: Optional[date]
-    rate_type: Optional[str]
-    rate_value: Optional[float]
-    maturity_date: Optional[date]
-    original_amount: Optional[float] = None
-    created_at: Optional[datetime]
+    rate_type: Optional[str] = None
+    rate_value: Optional[float] = None
+    maturity_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+    deposits: list[InvestmentDepositResponse] = []
+    redemptions: list[InvestmentRedemptionResponse] = []
     # Enriched fields (from API)
     current_price: Optional[float] = None
     change_24h: Optional[float] = None
@@ -289,31 +284,6 @@ class DashboardSummary(BaseModel):
     expense_by_category: list[dict]
     recent_transactions: list[TransactionResponse]
     market_data: dict
-
-
-class AssistantMessageInput(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(..., min_length=1, max_length=4000)
-
-
-class AssistantChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=4000)
-    history: list[AssistantMessageInput] = Field(default_factory=list, max_length=12)
-    purchase_amount: Optional[float] = Field(default=None, gt=0)
-    purchase_description: Optional[str] = Field(default=None, max_length=255)
-
-
-class AssistantContextResponse(BaseModel):
-    configured: bool
-    model: str
-    suggested_prompts: list[str]
-    snapshot: dict
-
-
-class AssistantChatResponse(BaseModel):
-    reply: str
-    model: str
-    snapshot: dict
 
 
 # === Binance Integration ===

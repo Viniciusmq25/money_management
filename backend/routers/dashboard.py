@@ -236,8 +236,7 @@ async def dashboard_summary(
             reds = redemptions_by_inv.get(inv.id, [])
             if deps or reds:
                 return sum(d.amount for d in deps) - sum(r.amount for r in reds)
-            # Sem depósitos: fallback para original_amount ou qty * avg
-            return inv.original_amount if inv.original_amount else (inv.quantity or 0) * (inv.avg_price or 0)
+            return 0
         return (inv.quantity or 0) * (inv.avg_price or 0)
 
     total_invested = sum(get_inv_invested(i) for i in investments)
@@ -303,12 +302,9 @@ async def dashboard_summary(
                         else:
                             total_val -= red.amount
                     current_val = total_val
-                elif not deps and inv.purchase_date and annual_rate > 0:
-                    # Sem depósitos: usa qty * avg com rendimento desde purchase_date
-                    days = (today - inv.purchase_date).days
-                    if days > 0:
-                        daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
-                        current_val = invested * (1 + daily_rate) ** days
+                elif not deps and annual_rate > 0:
+                    # Sem depósitos: sem rendimento calculável
+                    pass
             except Exception as e:
                 logger.warning(f"Erro ao calcular valor atual de renda fixa para investimento {inv.id}: {str(e)}")
             total_current += current_val

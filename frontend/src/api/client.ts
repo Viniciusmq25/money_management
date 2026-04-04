@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const api = axios.create({
   baseURL: "/money/api",
@@ -21,6 +22,10 @@ api.interceptors.response.use(
       if (window.location.pathname !== "/money/login") {
         window.location.href = "/money/login";
       }
+    } else if (error.response?.status === 500) {
+      toast.error("Erro interno do servidor. Tente novamente.");
+    } else if (!error.response) {
+      toast.error("Sem conexão com o servidor.");
     }
     return Promise.reject(error);
   }

@@ -6,8 +6,11 @@ import httpx
 import hmac
 import hashlib
 import time
+import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 from models.api_config import APIConfig
 from models.investment import Investment, InvestmentType
 
@@ -218,8 +221,8 @@ async def sync_binance_investments(db: Session) -> dict:
                     historical_avg = await get_avg_buy_price(api_key, api_secret, usdt_symbol)
                     if historical_avg:
                         existing.avg_price = historical_avg * usdt_brl
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not fetch avg buy price for {asset}: {e}")
                 updated += 1
                 details.append(f"Atualizado: {asset} = {total:.8f}")
         else:
@@ -230,7 +233,6 @@ async def sync_binance_investments(db: Session) -> dict:
                 name=f"{asset} (Binance)",
                 quantity=total,
                 avg_price=avg_price_brl,
-                purchase_date=datetime.now(timezone.utc).date(),
             )
             db.add(new_inv)
             created += 1

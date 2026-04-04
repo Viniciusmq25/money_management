@@ -1,16 +1,15 @@
 import httpx
-from datetime import datetime, timezone, timedelta
+import logging
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from models.quote_cache import QuoteCache
 from config import get_settings
-import logging
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
-# Mapping of common tickers to CoinGecko IDs
 TICKER_TO_ID = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
@@ -35,21 +34,28 @@ def _get_coin_id(ticker: str) -> str:
 
 
 async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
-    """Fetch crypto prices from CoinGecko with caching."""
+    """Fetch crypto prices from CoinGecko with batched cache lookup."""
+    if not tickers:
+        return {}
+
+    upper_tickers = [t.upper() for t in tickers]
     result = {}
     tickers_to_fetch = []
 
-    # Check cache first
-    for ticker in tickers:
-        cached = db.query(QuoteCache).filter(
-            QuoteCache.ticker == ticker.upper(),
-            QuoteCache.asset_type == "CRYPTO",
-        ).first()
+    # Batch cache lookup
+    cached_rows = db.query(QuoteCache).filter(
+        QuoteCache.ticker.in_(upper_tickers),
+        QuoteCache.asset_type == "CRYPTO",
+    ).all()
+    cached_map = {c.ticker: c for c in cached_rows}
 
+    now = datetime.now(timezone.utc)
+    for ticker in upper_tickers:
+        cached = cached_map.get(ticker)
         if cached and cached.fetched_at:
-            age = (datetime.now(timezone.utc) - cached.fetched_at.replace(tzinfo=timezone.utc)).total_seconds()
+            age = (now - cached.fetched_at.replace(tzinfo=timezone.utc)).total_seconds()
             if age < settings.CACHE_TTL_CRYPTO:
-                result[ticker.upper()] = {
+                result[ticker] = {
                     "price": cached.price,
                     "change_24h": cached.change_24h,
                     "extra": cached.extra_data,
@@ -60,7 +66,7 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
     if not tickers_to_fetch:
         return result
 
-    # Fetch from API
+    # Batch API call
     coin_ids = [_get_coin_id(t) for t in tickers_to_fetch]
     ids_str = ",".join(coin_ids)
 
@@ -79,11 +85,10 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
-        logger.error(f"Erro ao buscar preços de criptomoedas no CoinGecko: {str(e)}")
+        logger.error(f"CoinGecko fetch failed: {e}", exc_info=True)
         return result
 
-    # Map back to tickers and update cache
-    id_to_ticker = {_get_coin_id(t): t.upper() for t in tickers_to_fetch}
+    id_to_ticker = {_get_coin_id(t): t for t in tickers_to_fetch}
 
     for coin_id, info in data.items():
         ticker = id_to_ticker.get(coin_id)
@@ -100,18 +105,12 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
             "extra": {"market_cap": market_cap},
         }
 
-        # Upsert cache (query by ticker AND asset_type)
-        cached = db.query(QuoteCache).filter(
-            QuoteCache.ticker == ticker,
-            QuoteCache.asset_type == "CRYPTO",
-        ).first()
-
+        cached = cached_map.get(ticker)
         if cached:
-            cached.asset_type = "CRYPTO"
             cached.price = price
             cached.change_24h = change
             cached.extra_data = {"market_cap": market_cap}
-            cached.fetched_at = datetime.now(timezone.utc)
+            cached.fetched_at = now
         else:
             db.add(QuoteCache(
                 ticker=ticker,
@@ -124,8 +123,9 @@ async def get_crypto_prices(tickers: list[str], db: Session) -> dict:
     try:
         db.commit()
     except Exception as e:
-        logger.error(f"Erro ao salvar cache de criptomoedas: {str(e)}")
+        logger.error(f"CoinGecko cache save failed: {e}", exc_info=True)
         db.rollback()
+
     return result
 
 
@@ -147,5 +147,5 @@ async def get_crypto_history(coin_id: str, days: int = 30) -> list[dict]:
             for p in prices
         ]
     except Exception as e:
-        logger.error(f"Erro ao buscar histórico de {coin_id}: {str(e)}")
+        logger.error(f"CoinGecko history fetch failed for {coin_id}: {e}", exc_info=True)
         return []

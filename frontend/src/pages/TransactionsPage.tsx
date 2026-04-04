@@ -1,29 +1,21 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import { Plus, Search, Pencil, Trash2, ArrowUpRight, ArrowDownRight, X, Loader2 } from "lucide-react";
-import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
 import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
-import type { Transaction, Category } from "../types";
-import toast from "react-hot-toast";
+import type { Transaction } from "../types";
+import { useTransactions, useTransactionCount, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from "../hooks/useTransactions";
+import { useCategories } from "../hooks/useCategories";
 
 const PAGE_SIZE = 20;
 
 export default function TransactionsPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("");
   const [filterCat, setFilterCat] = useState<string>("");
-  const [offset, setOffset] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-
-  const hasMore = transactions.length < totalCount;
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   // Form state
   const [form, setForm] = useState({
@@ -34,67 +26,21 @@ export default function TransactionsPage() {
     category_id: "",
   });
 
-  const buildFilterParams = () => {
-    const params: any = {};
-    if (filterType) params.type = filterType;
-    if (filterCat) params.category_id = filterCat;
-    if (search) params.search = search;
-    return params;
-  };
+  const filterParams: Record<string, any> = {};
+  if (filterType) filterParams.type = filterType;
+  if (filterCat) filterParams.category_id = parseInt(filterCat);
+  if (search) filterParams.search = search;
 
-  const fetchData = async (append = false) => {
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-    }
+  const { data: transactions = [], isLoading: loading } = useTransactions({ ...filterParams, limit, offset: 0 });
+  const { data: totalCount = 0 } = useTransactionCount(filterParams);
+  const { data: categories = [] } = useCategories();
 
-    try {
-      const filterParams = buildFilterParams();
-      const currentOffset = append ? offset : 0;
+  const createTransaction = useCreateTransaction();
+  const updateTransaction = useUpdateTransaction();
+  const deleteTransaction = useDeleteTransaction();
 
-      const [txnRes, countRes, catRes] = await Promise.all([
-        api.get("/transactions", {
-          params: {
-            ...filterParams,
-            limit: PAGE_SIZE,
-            offset: currentOffset,
-          },
-        }),
-        api.get("/transactions/count", { params: filterParams }),
-        append ? Promise.resolve({ data: categories }) : api.get("/categories"),
-      ]);
-
-      const incoming = Array.isArray(txnRes.data) ? txnRes.data : [];
-      const count = typeof countRes.data?.count === "number" ? countRes.data.count : 0;
-
-      setTransactions((prev) => (append ? [...prev, ...incoming] : incoming));
-      setTotalCount(count);
-      setOffset(currentOffset + incoming.length);
-      if (!append) {
-        setCategories(Array.isArray(catRes.data) ? catRes.data : []);
-      }
-    } catch {
-      toast.error("Erro ao carregar transações");
-    } finally {
-      if (append) {
-        setLoadingMore(false);
-      } else {
-        setLoading(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    setOffset(0);
-    fetchData(false);
-  }, [filterType, filterCat, search]);
-
-  const handleLoadMore = () => {
-    if (!loadingMore && hasMore) {
-      fetchData(true);
-    }
-  };
+  const hasMore = transactions.length < totalCount;
+  const submitting = createTransaction.isPending || updateTransaction.isPending;
 
   const resetForm = () => {
     setForm({ type: "EXPENSE", amount: "", description: "", date: new Date().toISOString().slice(0, 10), category_id: "" });
@@ -104,52 +50,27 @@ export default function TransactionsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate required fields
+
     const amount = parseFloat(form.amount);
     if (isNaN(amount) || amount <= 0) {
-      toast.error("Valor deve ser maior que zero");
       return;
     }
     if (!form.description.trim()) {
-      toast.error("Descrição é obrigatória");
       return;
     }
-    if (!form.date) {
-      toast.error("Data é obrigatória");
-      return;
-    }
-    
-    setSubmitting(true);
+
     const payload = {
       type: form.type,
-      amount: amount,
+      amount,
       description: form.description.trim(),
       date: form.date,
       category_id: form.category_id ? parseInt(form.category_id) : null,
     };
 
-    try {
-      if (editId) {
-        await api.put(`/transactions/${editId}`, payload);
-        toast.success("Transação atualizada");
-      } else {
-        await api.post("/transactions", payload);
-        toast.success("Transação adicionada");
-      }
-      resetForm();
-      fetchData();
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      if (typeof detail === "string") {
-        toast.error(detail);
-      } else if (Array.isArray(detail)) {
-        toast.error(detail.map((d: any) => d.msg).join(", "));
-      } else {
-        toast.error("Erro ao salvar");
-      }
-    } finally {
-      setSubmitting(false);
+    if (editId) {
+      updateTransaction.mutate({ id: editId, data: payload }, { onSuccess: resetForm });
+    } else {
+      createTransaction.mutate(payload, { onSuccess: resetForm });
     }
   };
 
@@ -165,15 +86,13 @@ export default function TransactionsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm("Excluir esta transação?")) return;
-    try {
-      await api.delete(`/transactions/${id}`);
-      toast.success("Excluída");
-      fetchData();
-    } catch {
-      toast.error("Erro ao excluir");
-    }
+    deleteTransaction.mutate(id);
+  };
+
+  const handleLoadMore = () => {
+    if (hasMore) setLimit((prev) => prev + PAGE_SIZE);
   };
 
   const filteredCats = categories.filter((c) => (form.type === "INCOME" ? c.type === "INCOME" : c.type === "EXPENSE"));
@@ -210,14 +129,14 @@ export default function TransactionsPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setLimit(PAGE_SIZE); }}
             placeholder="Buscar..."
             className="w-full pl-10 pr-4 py-2.5 bg-primary-light border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
         <select
           value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
+          onChange={(e) => { setFilterType(e.target.value); setLimit(PAGE_SIZE); }}
           className="px-4 py-2.5 bg-primary-light border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
         >
           <option value="">Todos os tipos</option>
@@ -226,7 +145,7 @@ export default function TransactionsPage() {
         </select>
         <select
           value={filterCat}
-          onChange={(e) => setFilterCat(e.target.value)}
+          onChange={(e) => { setFilterCat(e.target.value); setLimit(PAGE_SIZE); }}
           className="px-4 py-2.5 bg-primary-light border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
         >
           <option value="">Todas categorias</option>
@@ -411,17 +330,9 @@ export default function TransactionsPage() {
             <div className="border-t border-border p-4 flex justify-center">
               <button
                 onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="px-4 py-2.5 bg-surface hover:bg-surface-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2.5 bg-surface hover:bg-surface-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer flex items-center gap-2"
               >
-                {loadingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Carregando...
-                  </>
-                ) : (
-                  "Ver mais"
-                )}
+                Ver mais
               </button>
             </div>
           )}

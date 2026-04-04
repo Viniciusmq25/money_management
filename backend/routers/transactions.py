@@ -10,6 +10,20 @@ from schemas import TransactionCreate, TransactionUpdate, TransactionResponse
 router = APIRouter(prefix="/api/transactions", tags=["transactions"], dependencies=[Depends(get_current_user)])
 
 
+def _apply_filters(query, type, category_id, date_from, date_to, search):
+    if type:
+        query = query.filter(Transaction.type == type)
+    if category_id:
+        query = query.filter(Transaction.category_id == category_id)
+    if date_from:
+        query = query.filter(Transaction.date >= date_from)
+    if date_to:
+        query = query.filter(Transaction.date <= date_to)
+    if search:
+        query = query.filter(Transaction.description.ilike(f"%{search}%"))
+    return query
+
+
 @router.get("", response_model=list[TransactionResponse])
 async def list_transactions(
     type: TransactionType | None = None,
@@ -22,16 +36,7 @@ async def list_transactions(
     db: Session = Depends(get_db),
 ):
     query = db.query(Transaction).options(joinedload(Transaction.category))
-    if type:
-        query = query.filter(Transaction.type == type)
-    if category_id:
-        query = query.filter(Transaction.category_id == category_id)
-    if date_from:
-        query = query.filter(Transaction.date >= date_from)
-    if date_to:
-        query = query.filter(Transaction.date <= date_to)
-    if search:
-        query = query.filter(Transaction.description.ilike(f"%{search}%"))
+    query = _apply_filters(query, type, category_id, date_from, date_to, search)
     return query.order_by(desc(Transaction.date), desc(Transaction.id)).offset(offset).limit(limit).all()
 
 
@@ -44,17 +49,7 @@ async def count_transactions(
     search: str | None = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(Transaction)
-    if type:
-        query = query.filter(Transaction.type == type)
-    if category_id:
-        query = query.filter(Transaction.category_id == category_id)
-    if date_from:
-        query = query.filter(Transaction.date >= date_from)
-    if date_to:
-        query = query.filter(Transaction.date <= date_to)
-    if search:
-        query = query.filter(Transaction.description.ilike(f"%{search}%"))
+    query = _apply_filters(db.query(Transaction), type, category_id, date_from, date_to, search)
     return {"count": query.count()}
 
 

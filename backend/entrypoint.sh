@@ -82,8 +82,8 @@ EOF
 
 echo ""
 
-# Migração: adicionar coluna original_amount em investments
-echo "🔄 Verificando coluna original_amount em investments..."
+# Migração: migrate RENDA_FIXA data to deposits, drop purchase_date and original_amount
+echo "🔄 Migrando dados deprecated de investments para deposits..."
 python3 << 'EOF'
 import os
 from sqlalchemy import text, create_engine
@@ -93,22 +93,40 @@ if db_url:
     try:
         engine = create_engine(db_url)
         with engine.connect() as conn:
+            # Check if original_amount column still exists
             result = conn.execute(text(
                 "SELECT column_name FROM information_schema.columns "
                 "WHERE table_name = 'investments' AND column_name = 'original_amount'"
             )).fetchone()
-            
-            if result:
-                print("✅ Coluna original_amount já existe")
+
+            if not result:
+                print("✅ Colunas deprecated já foram removidas")
             else:
-                print("Adicionando coluna original_amount...")
-                conn.execute(text(
-                    "ALTER TABLE investments ADD COLUMN original_amount FLOAT"
-                ))
+                # Migrate RENDA_FIXA investments that have original_amount but no deposits yet
+                migrated = conn.execute(text("""
+                    INSERT INTO investment_deposits (investment_id, amount, deposit_date)
+                    SELECT i.id,
+                           COALESCE(i.original_amount, i.quantity * i.avg_price),
+                           COALESCE(i.purchase_date, i.created_at::date)
+                    FROM investments i
+                    WHERE i.type = 'RENDA_FIXA'
+                      AND (i.original_amount > 0 OR (i.quantity > 0 AND i.avg_price > 0))
+                      AND NOT EXISTS (
+                          SELECT 1 FROM investment_deposits d WHERE d.investment_id = i.id
+                      )
+                """))
+                print(f"✓ Migrados {migrated.rowcount} investimentos RENDA_FIXA para deposits")
+
+                # Drop only truly deprecated columns
+                for col in ['purchase_date', 'original_amount']:
+                    try:
+                        conn.execute(text(f"ALTER TABLE investments DROP COLUMN IF EXISTS {col}"))
+                    except Exception:
+                        pass
                 conn.commit()
-                print("✅ Coluna original_amount adicionada com sucesso")
+                print("✅ Colunas deprecated removidas com sucesso")
     except Exception as e:
-        print(f"⚠️  Erro ao verificar/adicionar coluna: {e}")
+        print(f"⚠️  Erro na migração: {e}")
 EOF
 
 echo ""
