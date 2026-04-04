@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum as SAEnum
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 import enum
@@ -19,13 +20,13 @@ class Investment(Base):
     type = Column(SAEnum(InvestmentType), nullable=False)
     ticker = Column(String(20), nullable=False)
     name = Column(String(150), nullable=False)
-    quantity = Column(Float, nullable=False, default=0)
-    avg_price = Column(Float, nullable=False, default=0)
-    purchase_date = Column(Date, nullable=True)  # DEPRECATED: use investment_deposits for caixinhas
+    quantity = Column(Float, nullable=False, default=0)  # units owned (market assets)
+    avg_price = Column(Float, nullable=False, default=0)  # avg buy price (market assets)
     # For renda fixa
-    rate_type = Column(String(20), nullable=True)  # CDI, SELIC, PREFIXADO, IPCA+
-    rate_value = Column(Float, nullable=True)  # e.g., 100 (100% CDI), 12.5 (12.5% a.a.)
+    rate_type = Column(String(20), nullable=True)
+    rate_value = Column(Float, nullable=True)
     maturity_date = Column(Date, nullable=True)
-    # For caixinhas: DEPRECATED - use investment_deposits instead
-    original_amount = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    deposits = relationship("InvestmentDeposit", back_populates="investment", cascade="all, delete-orphan", lazy="selectin")
+    redemptions = relationship("InvestmentRedemption", back_populates="investment", cascade="all, delete-orphan", lazy="selectin")

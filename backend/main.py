@@ -7,7 +7,7 @@ import os
 
 from database import engine, Base, SessionLocal
 from models import *  # noqa: F401, F403
-from routers import auth, categories, transactions, investments, goals, imports, dashboard, assistant
+from routers import auth, categories, transactions, investments, goals, imports, dashboard
 from seed import seed_categories
 from sqlalchemy import text
 
@@ -31,8 +31,9 @@ def migrate_investment_enum(db_engine):
                     conn.commit()
                 except Exception:
                     conn.rollback()
-    except Exception:
-        pass  # If DB isn't ready, create_all will create everything
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Enum migration skipped: {e}")
 
 
 @asynccontextmanager
@@ -77,8 +78,6 @@ app.include_router(investments.router)
 app.include_router(goals.router)
 app.include_router(imports.router)
 app.include_router(dashboard.router)
-app.include_router(assistant.router)
-
 # Health check
 @app.get("/api/health")
 async def health():

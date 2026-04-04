@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Target, X, Calendar, Pencil, Trash2, Loader2 } from "lucide-react";
-import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
 import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { Goal } from "../types";
-import toast from "react-hot-toast";
+import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from "../hooks/useGoals";
 
 export default function GoalsPage() {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const { data: goals = [], isLoading: loading } = useGoals();
+  const createGoal = useCreateGoal();
+  const updateGoal = useUpdateGoal();
+  const deleteGoal = useDeleteGoal();
+
   const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
   const [editId, setEditId] = useState<number | null>(null);
@@ -24,20 +25,7 @@ export default function GoalsPage() {
 
   const COLORS = ["#6C63FF", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#06B6D4", "#8B5CF6", "#F97316"];
 
-  const fetchGoals = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get("/goals");
-      setGoals(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error("Erro ao carregar metas");
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchGoals();
-  }, []);
+  const submitting = createGoal.isPending || updateGoal.isPending;
 
   const resetForm = () => {
     setForm({ name: "", target_amount: "", current_amount: "0", deadline: "", icon: "target", color: "#6C63FF" });
@@ -47,7 +35,6 @@ export default function GoalsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     const payload = {
       name: form.name,
       target_amount: parseFloat(form.target_amount),
@@ -56,20 +43,10 @@ export default function GoalsPage() {
       icon: form.icon,
       color: form.color,
     };
-    try {
-      if (editId) {
-        await api.put(`/goals/${editId}`, payload);
-        toast.success("Meta atualizada");
-      } else {
-        await api.post("/goals", payload);
-        toast.success("Meta criada");
-      }
-      resetForm();
-      fetchGoals();
-    } catch {
-      toast.error("Erro ao salvar");
-    } finally {
-      setSubmitting(false);
+    if (editId) {
+      updateGoal.mutate({ id: editId, data: payload }, { onSuccess: resetForm });
+    } else {
+      createGoal.mutate(payload, { onSuccess: resetForm });
     }
   };
 
@@ -86,24 +63,13 @@ export default function GoalsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm("Excluir esta meta?")) return;
-    try {
-      await api.delete(`/goals/${id}`);
-      toast.success("Meta excluída");
-      fetchGoals();
-    } catch {
-      toast.error("Erro ao excluir");
-    }
+    deleteGoal.mutate(id);
   };
 
-  const handleUpdateAmount = async (goal: Goal, delta: number) => {
-    try {
-      await api.put(`/goals/${goal.id}`, { current_amount: Math.max(0, goal.current_amount + delta) });
-      fetchGoals();
-    } catch {
-      toast.error("Erro ao atualizar");
-    }
+  const handleUpdateAmount = (goal: Goal, delta: number) => {
+    updateGoal.mutate({ id: goal.id, data: { current_amount: Math.max(0, goal.current_amount + delta) } });
   };
 
   if (loading) {

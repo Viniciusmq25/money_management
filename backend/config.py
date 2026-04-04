@@ -12,9 +12,6 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://money:money@money-db:5432/money_management"
     COINGECKO_API_KEY: str = ""
     BRAPI_TOKEN: str = ""
-    ANTHROPIC_API_KEY: str = ""
-    ANTHROPIC_MODEL: str = "claude-3-5-haiku-latest"
-    ANTHROPIC_MAX_TOKENS: int = 900
     ENCRYPTION_KEY: str = ""  # Chave dedicada para criptografia (32 bytes base64)
     CACHE_TTL_CRYPTO: int = 300  # 5 minutes
     CACHE_TTL_FII: int = 1800  # 30 minutes

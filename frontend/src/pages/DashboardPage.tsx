@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Wallet,
   TrendingUp,
@@ -19,25 +18,15 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import api from "../api/client";
 import { formatCurrency, formatPercent, formatMonth, formatDate } from "../utils/format";
 import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
-import type { DashboardData } from "../types";
+import { useDashboard } from "../hooks/useDashboard";
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useDashboard();
   const { showMoney } = useMoneyVisibility();
 
-  useEffect(() => {
-    api
-      .get("/dashboard/summary")
-      .then((r) => setData(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
