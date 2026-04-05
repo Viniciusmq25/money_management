@@ -163,66 +163,68 @@ export default function InvestmentTable({
         ))}
       </div>
 
-      {sortedPositions.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted">
-            {tab === "ALL"
-              ? "Nenhum investimento cadastrado"
-              : `Nenhum investimento em ${TYPE_LABELS[tab]}`}
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className={thClass} onClick={() => handleSort("ticker")}>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border">
+              <th className={thClass} onClick={() => handleSort("ticker")}>
+                <div className="flex items-center gap-1">
+                  Ativo {getSortIcon("ticker")}
+                </div>
+              </th>
+              {tab === "ALL" && (
+                <th className={thClass} onClick={() => handleSort("type")}>
                   <div className="flex items-center gap-1">
-                    Ativo {getSortIcon("ticker")}
+                    Tipo {getSortIcon("type")}
                   </div>
                 </th>
-                {tab === "ALL" && (
-                  <th className={thClass} onClick={() => handleSort("type")}>
-                    <div className="flex items-center gap-1">
-                      Tipo {getSortIcon("type")}
-                    </div>
-                  </th>
-                )}
-                <th className={thClassRight} onClick={() => handleSort("quantity")}>
-                  <div className="flex items-center justify-end gap-1">
-                    Qtd {getSortIcon("quantity")}
-                  </div>
-                </th>
-                <th className={thClassRight} onClick={() => handleSort("avg_price")}>
-                  <div className="flex items-center justify-end gap-1">
-                    Preço Médio {getSortIcon("avg_price")}
-                  </div>
-                </th>
-                <th className={thClassRight} onClick={() => handleSort("current_price")}>
-                  <div className="flex items-center justify-end gap-1">
-                    Atual {getSortIcon("current_price")}
-                  </div>
-                </th>
-                <th className={thClassRight} onClick={() => handleSort("total_invested")}>
-                  <div className="flex items-center justify-end gap-1">
-                    Investido {getSortIcon("total_invested")}
-                  </div>
-                </th>
-                <th className={thClassRight} onClick={() => handleSort("current_value")}>
-                  <div className="flex items-center justify-end gap-1">
-                    Valor Atual {getSortIcon("current_value")}
-                  </div>
-                </th>
-                <th className={thClassRight} onClick={() => handleSort("profit_loss")}>
-                  <div className="flex items-center justify-end gap-1">
-                    P&L {getSortIcon("profit_loss")}
-                  </div>
-                </th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase"></th>
+              )}
+              <th className={thClassRight} onClick={() => handleSort("quantity")}>
+                <div className="flex items-center justify-end gap-1">
+                  Qtd {getSortIcon("quantity")}
+                </div>
+              </th>
+              <th className={thClassRight} onClick={() => handleSort("avg_price")}>
+                <div className="flex items-center justify-end gap-1">
+                  Preço Médio {getSortIcon("avg_price")}
+                </div>
+              </th>
+              <th className={thClassRight} onClick={() => handleSort("current_price")}>
+                <div className="flex items-center justify-end gap-1">
+                  Atual {getSortIcon("current_price")}
+                </div>
+              </th>
+              <th className={thClassRight} onClick={() => handleSort("total_invested")}>
+                <div className="flex items-center justify-end gap-1">
+                  Investido {getSortIcon("total_invested")}
+                </div>
+              </th>
+              <th className={thClassRight} onClick={() => handleSort("current_value")}>
+                <div className="flex items-center justify-end gap-1">
+                  Valor Atual {getSortIcon("current_value")}
+                </div>
+              </th>
+              <th className={thClassRight} onClick={() => handleSort("profit_loss")}>
+                <div className="flex items-center justify-end gap-1">
+                  P&L {getSortIcon("profit_loss")}
+                </div>
+              </th>
+              <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedPositions.length === 0 ? (
+              <tr>
+                <td colSpan={tab === "ALL" ? 9 : 8} className="text-center py-12">
+                  <p className="text-muted">
+                    {tab === "ALL"
+                      ? "Nenhum investimento cadastrado"
+                      : `Nenhum investimento em ${TYPE_LABELS[tab]}`}
+                  </p>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {sortedPositions.map((inv) => (
+            ) : (
+              sortedPositions.map((inv) => (
                 <tr
                   key={inv.id}
                   className="border-b border-border last:border-0 hover:bg-surface-hover transition"
@@ -324,19 +326,19 @@ export default function InvestmentTable({
                     </div>
                   </td>
                 </tr>
-              ))}
-              {tab !== "ALL" && tab !== "CRYPTO" && (
-                <InlineAddInvestmentForm
-                  tab={tab as "RENDA_FIXA" | "FII" | "ACAO_BR" | "ACAO_GLOBAL"}
-                  onSubmit={onAddInvestment}
-                  isPending={isAddPending}
-                  colSpan={8}
-                />
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+              ))
+            )}
+            {tab !== "ALL" && tab !== "CRYPTO" && (
+              <InlineAddInvestmentForm
+                tab={tab as "RENDA_FIXA" | "FII" | "ACAO_BR" | "ACAO_GLOBAL"}
+                onSubmit={onAddInvestment}
+                isPending={isAddPending}
+                colSpan={8}
+              />
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
