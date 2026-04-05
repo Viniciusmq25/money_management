@@ -131,6 +131,27 @@ class InvestmentRedemptionResponse(BaseModel):
         from_attributes = True
 
 
+# === Stock Transaction ===
+class StockTransactionCreate(BaseModel):
+    type: Literal["COMPRA", "VENDA"]
+    quantity: float = Field(..., gt=0)
+    price_per_share: float = Field(..., gt=0)
+    date: date
+
+
+class StockTransactionResponse(BaseModel):
+    id: int
+    investment_id: int
+    type: str
+    quantity: float
+    price_per_share: float
+    date: date
+    created_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 # === Investment ===
 class InvestmentCreate(BaseModel):
     type: InvestmentType
@@ -190,6 +211,7 @@ class InvestmentResponse(BaseModel):
     created_at: Optional[datetime] = None
     deposits: list[InvestmentDepositResponse] = []
     redemptions: list[InvestmentRedemptionResponse] = []
+    stock_transactions: list[StockTransactionResponse] = []
     # Enriched fields (from API)
     current_price: Optional[float] = None
     change_24h: Optional[float] = None

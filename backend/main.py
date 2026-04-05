@@ -36,12 +36,28 @@ def migrate_investment_enum(db_engine):
         logging.getLogger(__name__).warning(f"Enum migration skipped: {e}")
 
 
+def migrate_stock_data(db_engine):
+    """Wipe quantity/avg_price for stock-type investments — movimentações are now source of truth."""
+    try:
+        with db_engine.connect() as conn:
+            conn.execute(text(
+                "UPDATE investments SET quantity=0, avg_price=0 "
+                "WHERE type IN ('FII','ACAO_BR','ACAO_GLOBAL')"
+            ))
+            conn.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Stock data migration skipped: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Migrate enum values first (before create_all)
     migrate_investment_enum(engine)
     # Create tables
     Base.metadata.create_all(bind=engine)
+    # Wipe quantity/avg_price for stock types (movimentações are source of truth)
+    migrate_stock_data(engine)
     # Seed default categories
     db = SessionLocal()
     try:

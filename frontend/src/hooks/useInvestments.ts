@@ -81,6 +81,32 @@ export function useCreateRedemption() {
   });
 }
 
+export function useCreateStockTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ investmentId, data }: { investmentId: number; data: any }) =>
+      api.post(`/investments/${investmentId}/stock-transactions`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments"] });
+      qc.invalidateQueries({ queryKey: ["investment-summary"] });
+      toast.success("Movimentação registrada!");
+    },
+  });
+}
+
+export function useDeleteStockTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ investmentId, txId }: { investmentId: number; txId: number }) =>
+      api.delete(`/investments/${investmentId}/stock-transactions/${txId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments"] });
+      qc.invalidateQueries({ queryKey: ["investment-summary"] });
+      toast.success("Movimentação excluída!");
+    },
+  });
+}
+
 export function useBinanceStatus() {
   return useQuery({
     queryKey: ["binance-status"],

@@ -36,6 +36,16 @@ export interface InvestmentRedemption {
   created_at: string;
 }
 
+export interface StockTransaction {
+  id: number;
+  investment_id: number;
+  type: "COMPRA" | "VENDA";
+  quantity: number;
+  price_per_share: number;
+  date: string;
+  created_at: string;
+}
+
 export interface Investment {
   id: number;
   type: "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL";
@@ -49,6 +59,7 @@ export interface Investment {
   created_at: string;
   deposits: InvestmentDeposit[];
   redemptions: InvestmentRedemption[];
+  stock_transactions: StockTransaction[];
   current_price: number | null;
   change_24h: number | null;
   total_invested: number | null;

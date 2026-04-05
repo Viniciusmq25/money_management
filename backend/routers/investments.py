@@ -5,13 +5,17 @@ from auth import get_current_user
 from models.investment import Investment, InvestmentType
 from models.investment_deposit import InvestmentDeposit
 from models.investment_redemption import InvestmentRedemption
+from models.stock_transaction import StockTransaction
 from models.api_config import APIConfig
 from schemas import (
     InvestmentCreate, InvestmentUpdate, InvestmentResponse,
     InvestmentDepositCreate, InvestmentDepositResponse,
     InvestmentRedemptionCreate, InvestmentRedemptionResponse,
+    StockTransactionCreate, StockTransactionResponse,
     BinanceConfigCreate, BinanceConfigResponse, BinanceSyncResponse,
 )
+
+STOCK_TYPES = (InvestmentType.FII, InvestmentType.ACAO_BR, InvestmentType.ACAO_GLOBAL)
 from services.coingecko import get_crypto_prices
 from services.brapi import get_fii_quotes, get_stock_quotes
 from services.bcb import get_selic_cdi_rates
@@ -76,8 +80,17 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
     """Build enriched dict for a single investment using pre-fetched prices."""
     deposits = inv.deposits or []
     redemptions = inv.redemptions or []
-    qty = inv.quantity or 0
-    avg = inv.avg_price or 0
+    stock_txs = inv.stock_transactions if hasattr(inv, 'stock_transactions') else []
+
+    if inv.type in STOCK_TYPES and stock_txs:
+        buys = [t for t in stock_txs if t.type == "COMPRA"]
+        sells = [t for t in stock_txs if t.type == "VENDA"]
+        qty = max(sum(t.quantity for t in buys) - sum(t.quantity for t in sells), 0)
+        buy_qty = sum(t.quantity for t in buys)
+        avg = sum(t.quantity * t.price_per_share for t in buys) / buy_qty if buy_qty > 0 else 0
+    else:
+        qty = inv.quantity or 0
+        avg = inv.avg_price or 0
 
     # For market assets: total_invested = qty * avg_price
     # For RENDA_FIXA: total_invested = sum(deposits) - sum(redemptions)
@@ -91,14 +104,15 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
         "type": inv.type,
         "ticker": inv.ticker,
         "name": inv.name,
-        "quantity": inv.quantity,
-        "avg_price": inv.avg_price,
+        "quantity": qty,
+        "avg_price": avg,
         "rate_type": inv.rate_type,
         "rate_value": inv.rate_value,
         "maturity_date": inv.maturity_date,
         "created_at": inv.created_at,
         "deposits": [{"id": d.id, "investment_id": d.investment_id, "amount": d.amount, "deposit_date": d.deposit_date, "created_at": d.created_at} for d in deposits],
         "redemptions": [{"id": r.id, "investment_id": r.investment_id, "amount": r.amount, "redemption_date": r.redemption_date, "created_at": r.created_at} for r in redemptions],
+        "stock_transactions": [{"id": t.id, "investment_id": t.investment_id, "type": t.type, "quantity": t.quantity, "price_per_share": t.price_per_share, "date": t.date, "created_at": t.created_at} for t in stock_txs],
         "total_invested": total_invested,
         "current_price": None,
         "change_24h": None,
@@ -189,6 +203,9 @@ async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db
         Investment.type == data.type
     ).first()
 
+    if existing and data.type in STOCK_TYPES:
+        raise HTTPException(status_code=409, detail="Ativo já cadastrado")
+
     if existing:
         # Weighted average for market assets
         old_total = (existing.quantity or 0) * (existing.avg_price or 0)
@@ -208,6 +225,9 @@ async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db
 
     payload = data.model_dump()
     payload["ticker"] = payload["ticker"].upper()
+    if data.type in STOCK_TYPES:
+        payload["quantity"] = 0
+        payload["avg_price"] = 0
     inv = Investment(**payload)
     db.add(inv)
     db.commit()
@@ -420,5 +440,66 @@ async def delete_redemption(investment_id: int, redemption_id: int, db: Session 
     if not redemption:
         raise HTTPException(status_code=404, detail="Resgate não encontrado")
     db.delete(redemption)
+    db.commit()
+    return {"ok": True}
+
+
+# === Stock Transactions ===
+
+@router.get("/{investment_id}/stock-transactions", response_model=list[StockTransactionResponse])
+async def list_stock_transactions(investment_id: int, db: Session = Depends(get_db)):
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    return sorted(inv.stock_transactions, key=lambda t: t.date)
+
+
+@router.post("/{investment_id}/stock-transactions", response_model=StockTransactionResponse)
+async def create_stock_transaction(investment_id: int, data: StockTransactionCreate, db: Session = Depends(get_db)):
+    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    if inv.type not in STOCK_TYPES:
+        raise HTTPException(status_code=400, detail="Movimentações de ações só são permitidas para FII, ACAO_BR e ACAO_GLOBAL")
+
+    tx = StockTransaction(
+        investment_id=investment_id,
+        type=data.type,
+        quantity=data.quantity,
+        price_per_share=data.price_per_share,
+        date=data.date,
+    )
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+@router.put("/{investment_id}/stock-transactions/{tx_id}", response_model=StockTransactionResponse)
+async def update_stock_transaction(investment_id: int, tx_id: int, data: StockTransactionCreate, db: Session = Depends(get_db)):
+    tx = db.query(StockTransaction).filter(
+        StockTransaction.id == tx_id,
+        StockTransaction.investment_id == investment_id,
+    ).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Movimentação não encontrada")
+    tx.type = data.type
+    tx.quantity = data.quantity
+    tx.price_per_share = data.price_per_share
+    tx.date = data.date
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+@router.delete("/{investment_id}/stock-transactions/{tx_id}")
+async def delete_stock_transaction(investment_id: int, tx_id: int, db: Session = Depends(get_db)):
+    tx = db.query(StockTransaction).filter(
+        StockTransaction.id == tx_id,
+        StockTransaction.investment_id == investment_id,
+    ).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Movimentação não encontrada")
+    db.delete(tx)
     db.commit()
     return {"ok": True}

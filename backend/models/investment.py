@@ -30,3 +30,4 @@ class Investment(Base):
 
     deposits = relationship("InvestmentDeposit", back_populates="investment", cascade="all, delete-orphan", lazy="selectin")
     redemptions = relationship("InvestmentRedemption", back_populates="investment", cascade="all, delete-orphan", lazy="selectin")
+    stock_transactions = relationship("StockTransaction", back_populates="investment", cascade="all, delete-orphan", lazy="selectin")

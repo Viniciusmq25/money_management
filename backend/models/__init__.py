@@ -8,6 +8,7 @@ from models.api_config import APIConfig
 from models.app_settings import AppSettings
 from models.investment_deposit import InvestmentDeposit
 from models.investment_redemption import InvestmentRedemption
+from models.stock_transaction import StockTransaction
 
 __all__ = [
     "Category",
@@ -20,4 +21,5 @@ __all__ = [
     "AppSettings",
     "InvestmentDeposit",
     "InvestmentRedemption",
+    "StockTransaction",
 ]

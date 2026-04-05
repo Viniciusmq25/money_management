@@ -14,8 +14,10 @@ import {
   ArrowDown,
 } from "lucide-react";
 import type { Investment } from "../../types";
+import type { InvestmentFormData } from "./InvestmentForm";
 import { formatCurrency, formatPercent } from "../../utils/format";
 import { TYPE_LABELS, TYPE_COLORS } from "../../constants/theme";
+import InlineAddInvestmentForm from "./InlineAddInvestmentForm";
 
 type Tab = "ALL" | "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL";
 
@@ -46,6 +48,8 @@ interface Props {
   showMoney: boolean;
   onDelete: (id: number) => void;
   onOpenTransactions: (inv: Investment) => void;
+  onAddInvestment: (data: InvestmentFormData) => void;
+  isAddPending: boolean;
 }
 
 export default function InvestmentTable({
@@ -55,6 +59,8 @@ export default function InvestmentTable({
   showMoney,
   onDelete,
   onOpenTransactions,
+  onAddInvestment,
+  isAddPending,
 }: Props) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("current_value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -299,11 +305,11 @@ export default function InvestmentTable({
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {inv.type === "RENDA_FIXA" && (
+                      {["RENDA_FIXA", "FII", "ACAO_BR", "ACAO_GLOBAL"].includes(inv.type) && (
                         <button
                           onClick={() => onOpenTransactions(inv)}
                           className="p-1.5 text-muted hover:text-accent transition cursor-pointer"
-                          title="Movimentações (Aplicações/Resgates)"
+                          title="Movimentações"
                         >
                           <ArrowUpDown className="w-4 h-4" />
                         </button>
@@ -319,6 +325,14 @@ export default function InvestmentTable({
                   </td>
                 </tr>
               ))}
+              {tab !== "ALL" && tab !== "CRYPTO" && (
+                <InlineAddInvestmentForm
+                  tab={tab as "RENDA_FIXA" | "FII" | "ACAO_BR" | "ACAO_GLOBAL"}
+                  onSubmit={onAddInvestment}
+                  isPending={isAddPending}
+                  colSpan={8}
+                />
+              )}
             </tbody>
           </table>
         </div>

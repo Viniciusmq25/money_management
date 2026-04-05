@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, RefreshCw, Link2, Link2Off } from "lucide-react";
+import { RefreshCw, Link2, Link2Off } from "lucide-react";
 import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import { TYPE_LABELS, TYPE_COLORS, ASSET_COLORS } from "../constants/theme";
 import {
@@ -8,6 +8,7 @@ import {
   useDeleteInvestment,
   useCreateDeposit,
   useCreateRedemption,
+  useCreateStockTransaction,
   useBinanceStatus,
   useBinanceSync,
   useBinanceConfig,
@@ -20,7 +21,6 @@ import toast from "react-hot-toast";
 import InvestmentSummaryCards from "../components/investments/InvestmentSummaryCards";
 import AllocationChart from "../components/investments/AllocationChart";
 import InvestmentTable from "../components/investments/InvestmentTable";
-import InvestmentForm from "../components/investments/InvestmentForm";
 import DepositModal from "../components/investments/DepositModal";
 import BinanceConfigModal from "../components/investments/BinanceConfigModal";
 
@@ -36,12 +36,12 @@ export default function InvestmentsPage() {
   const deleteInvestment = useDeleteInvestment();
   const createDeposit = useCreateDeposit();
   const createRedemption = useCreateRedemption();
+  const createStockTransaction = useCreateStockTransaction();
   const binanceSync = useBinanceSync();
   const binanceConfigMutation = useBinanceConfig();
   const deleteBinanceConfig = useDeleteBinanceConfig();
 
   const [tab, setTab] = useState<Tab>("ALL");
-  const [showForm, setShowForm] = useState(false);
   const { showMoney } = useMoneyVisibility();
 
   const [selectedInvestment, setSelectedInvestment] =
@@ -56,10 +56,26 @@ export default function InvestmentsPage() {
 
   const handleSubmitInvestment = (data: InvestmentFormData) => {
     createInvestment.mutate(data, {
-      onSuccess: () => setShowForm(false),
       onError: (err: any) =>
         toast.error(err.response?.data?.detail || "Erro ao salvar"),
     });
+  };
+
+  const handleSubmitStockTransaction = (data: {
+    type: string;
+    quantity: number;
+    price_per_share: number;
+    date: string;
+  }) => {
+    if (!selectedInvestment) return;
+    createStockTransaction.mutate(
+      { investmentId: selectedInvestment.id, data },
+      {
+        onSuccess: () => setShowTransactionsModal(false),
+        onError: (err: any) =>
+          toast.error(err.response?.data?.detail || "Erro ao salvar"),
+      },
+    );
   };
 
   const handleOpenTransactions = (inv: Investment) => {
@@ -110,6 +126,10 @@ export default function InvestmentsPage() {
       if (type === "DEPOSIT") {
         await api.delete(
           `/investments/${selectedInvestment.id}/deposits/${id}`,
+        );
+      } else if (type === "STOCK") {
+        await api.delete(
+          `/investments/${selectedInvestment.id}/stock-transactions/${id}`,
         );
       } else {
         await api.delete(
@@ -205,12 +225,6 @@ export default function InvestmentsPage() {
               <Link2 className="w-4 h-4" /> Conectar Binance
             </button>
           )}
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Adicionar
-          </button>
         </div>
       </div>
 
@@ -227,16 +241,10 @@ export default function InvestmentsPage() {
           showMoney={showMoney}
           onDelete={handleDelete}
           onOpenTransactions={handleOpenTransactions}
+          onAddInvestment={handleSubmitInvestment}
+          isAddPending={createInvestment.isPending}
         />
       </div>
-
-      <InvestmentForm
-        open={showForm}
-        onClose={() => setShowForm(false)}
-        onSubmit={handleSubmitInvestment}
-        isPending={createInvestment.isPending}
-        defaultType={tab}
-      />
 
       <DepositModal
         open={showTransactionsModal}
@@ -245,8 +253,9 @@ export default function InvestmentsPage() {
         showMoney={showMoney}
         onSubmitDeposit={handleSubmitDeposit}
         onSubmitRedemption={handleSubmitRedemption}
+        onSubmitStockTransaction={handleSubmitStockTransaction}
         onDeleteTransaction={handleDeleteTransaction}
-        isPending={createDeposit.isPending || createRedemption.isPending}
+        isPending={createDeposit.isPending || createRedemption.isPending || createStockTransaction.isPending}
       />
 
       <BinanceConfigModal
