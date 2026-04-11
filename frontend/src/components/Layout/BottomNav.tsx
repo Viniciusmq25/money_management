@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, ArrowLeftRight, BarChart3, Menu } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, BarChart3, TrendingUp, Menu } from "lucide-react";
 
 interface BottomNavProps {
   onMenuOpen: () => void;
@@ -8,6 +8,7 @@ interface BottomNavProps {
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transações", end: false },
+  { to: "/investments", icon: TrendingUp, label: "Investimentos", end: false },
   { to: "/reports", icon: BarChart3, label: "Relatórios", end: false },
 ];
 

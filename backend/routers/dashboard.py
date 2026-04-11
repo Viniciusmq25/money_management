@@ -7,11 +7,8 @@ from auth import get_current_user
 from models.transaction import Transaction, TransactionType
 from models.category import Category
 from models.investment import Investment
-from models.investment_deposit import InvestmentDeposit
-from models.investment_redemption import InvestmentRedemption
-from services.coingecko import get_crypto_prices
-from services.brapi import get_fii_quotes
 from services.bcb import get_selic_cdi_rates
+from routers.investments import enrich_investments as _enrich_investments
 import logging
 
 logger = logging.getLogger(__name__)
@@ -210,106 +207,21 @@ async def dashboard_summary(
             "category": {"name": t.category.name, "color": t.category.color, "icon": t.category.icon} if t.category else None,
         })
 
-    # Investment totals
+    # Investment totals — reuse enrich_investments to avoid duplicating stock_transaction logic
     investments = db.query(Investment).all()
+    enriched = await _enrich_investments(investments, db)
 
-    # Busca depósitos e resgates de RENDA_FIXA agrupados por investment_id
-    renda_fixa_ids = [i.id for i in investments if i.type.value == "RENDA_FIXA"]
-    deposits_by_inv: dict[int, list] = {}
-    redemptions_by_inv: dict[int, list] = {}
-    if renda_fixa_ids:
-        all_deposits = db.query(InvestmentDeposit).filter(
-            InvestmentDeposit.investment_id.in_(renda_fixa_ids)
-        ).order_by(InvestmentDeposit.deposit_date).all()
-        all_redemptions = db.query(InvestmentRedemption).filter(
-            InvestmentRedemption.investment_id.in_(renda_fixa_ids)
-        ).order_by(InvestmentRedemption.redemption_date).all()
-        for d in all_deposits:
-            deposits_by_inv.setdefault(d.investment_id, []).append(d)
-        for r in all_redemptions:
-            redemptions_by_inv.setdefault(r.investment_id, []).append(r)
+    total_invested = sum(e["total_invested"] or 0 for e in enriched)
+    total_current = sum(e["current_value"] if e["current_value"] is not None else (e["total_invested"] or 0) for e in enriched)
 
-    def get_inv_invested(inv: Investment) -> float:
-        """Retorna o valor total investido para um investimento."""
-        if inv.type.value == "RENDA_FIXA":
-            deps = deposits_by_inv.get(inv.id, [])
-            reds = redemptions_by_inv.get(inv.id, [])
-            if deps or reds:
-                return sum(d.amount for d in deps) - sum(r.amount for r in reds)
-            return 0
-        return (inv.quantity or 0) * (inv.avg_price or 0)
-
-    total_invested = sum(get_inv_invested(i) for i in investments)
-
-    # Fetch market data
+    # Fetch rates for market data widget
     market_data = {"rates": {"selic_annual": 0, "cdi_annual": 0}}
     try:
-        crypto_tickers = [i.ticker for i in investments if i.type.value == "CRYPTO"]
-        stock_tickers = [i.ticker for i in investments if i.type.value in ("FII", "ACAO_BR", "ACAO_GLOBAL")]
-
-        if crypto_tickers:
-            market_data["crypto"] = await get_crypto_prices(crypto_tickers, db)
-        if stock_tickers:
-            market_data["fii"] = await get_fii_quotes(stock_tickers, db)
-
         rates = await get_selic_cdi_rates(db)
         if rates:
             market_data["rates"] = rates
     except Exception as e:
-        logger.error(f"Erro ao buscar dados de mercado para dashboard: {str(e)}")
-
-    # Compute total current value
-    total_current = 0
-    for inv in investments:
-        qty = inv.quantity or 0
-        avg = inv.avg_price or 0
-        invested = get_inv_invested(inv)
-
-        # Determine current value logic
-        if inv.type.value == "CRYPTO" and "crypto" in market_data and inv.ticker in market_data["crypto"]:
-            total_current += qty * market_data["crypto"][inv.ticker]["price"]
-        elif inv.type.value in ("FII", "ACAO_BR", "ACAO_GLOBAL") and "fii" in market_data and inv.ticker in market_data["fii"]:
-            total_current += qty * market_data["fii"][inv.ticker]["price"]
-        elif inv.type.value == "RENDA_FIXA":
-            deps = deposits_by_inv.get(inv.id, [])
-            reds = redemptions_by_inv.get(inv.id, [])
-            current_val = invested
-            try:
-                rates_data = market_data.get("rates", {})
-                annual_rate = 0
-                if inv.rate_type == "SELIC":
-                    annual_rate = rates_data.get("selic_annual", 0) * (inv.rate_value or 100) / 100
-                elif inv.rate_type == "CDI":
-                    annual_rate = rates_data.get("cdi_annual", 0) * (inv.rate_value or 100) / 100
-                elif inv.rate_type == "PREFIXADO":
-                    annual_rate = inv.rate_value or 0
-
-                if deps and annual_rate > 0:
-                    # Cálculo por depósito (ex-caixinhas): cada aporte rende individualmente
-                    total_val = 0
-                    for dep in deps:
-                        days = (today - dep.deposit_date).days
-                        if days > 0:
-                            daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
-                            total_val += dep.amount * (1 + daily_rate) ** days
-                        else:
-                            total_val += dep.amount
-                    for red in reds:
-                        days = (today - red.redemption_date).days
-                        if days > 0:
-                            daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
-                            total_val -= red.amount * (1 + daily_rate) ** days
-                        else:
-                            total_val -= red.amount
-                    current_val = total_val
-                elif not deps and annual_rate > 0:
-                    # Sem depósitos: sem rendimento calculável
-                    pass
-            except Exception as e:
-                logger.warning(f"Erro ao calcular valor atual de renda fixa para investimento {inv.id}: {str(e)}")
-            total_current += current_val
-        else:
-            total_current += invested
+        logger.error(f"Erro ao buscar taxas de mercado para dashboard: {str(e)}")
 
     inv_change_pct = ((total_current - total_invested) / total_invested * 100) if total_invested > 0 else 0
 

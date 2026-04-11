@@ -24,8 +24,8 @@ const links = [
   { to: "/transactions", icon: ArrowLeftRight, label: "Transações" },
   { to: "/investments", icon: TrendingUp, label: "Investimentos" },
   { to: "/goals", icon: Target, label: "Metas" },
-  { to: "/import", icon: Upload, label: "Importar" },
   { to: "/reports", icon: BarChart3, label: "Relatórios" },
+  { to: "/import", icon: Upload, label: "Importar" },
 ];
 
 interface SidebarProps {
@@ -159,7 +159,7 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
             }`}
             title={showMoney ? "Ocultar valores" : "Mostrar valores"}
           >
-            {showMoney ? <EyeOff className="w-5 h-5 flex-shrink-0" /> : <Eye className="w-5 h-5 flex-shrink-0" />}
+            {showMoney ? <Eye className="w-5 h-5 flex-shrink-0" /> : <EyeOff className="w-5 h-5 flex-shrink-0" />}
             {!collapsed && (showMoney ? "Ocultar Valores" : "Mostrar Valores")}
           </button>
           <button

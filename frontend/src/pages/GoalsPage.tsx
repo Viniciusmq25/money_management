@@ -137,6 +137,7 @@ export default function GoalsPage() {
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${Math.min(goal.progress || 0, 100)}%`,
+                      minWidth: (goal.progress || 0) > 0 ? "6px" : "0",
                       backgroundColor: goal.color,
                     }}
                   />

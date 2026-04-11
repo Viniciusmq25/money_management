@@ -21,6 +21,7 @@ import {
 import { formatCurrency, formatPercent, formatMonth, formatDate } from "../utils/format";
 import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import { useDashboard } from "../hooks/useDashboard";
+import { SkeletonCard, SkeletonChart, SkeletonTable } from "../components/common/Skeleton";
 
 export default function DashboardPage() {
   const { data, isLoading } = useDashboard();
@@ -28,8 +29,16 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6">
+        <div className="h-8 w-36 bg-surface animate-pulse rounded" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <SkeletonChart className="lg:col-span-2" />
+          <SkeletonChart />
+        </div>
+        <SkeletonTable rows={5} />
       </div>
     );
   }

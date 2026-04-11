@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <line x1="12" y1="1" x2="12" y2="23"></line>
-  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="102" fill="#85adff"/>
+  <g transform="translate(256, 256)">
+    <circle cx="0" cy="0" r="140" fill="none" stroke="white" stroke-width="18"/>
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="180" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">$</text>
+  </g>
 </svg>

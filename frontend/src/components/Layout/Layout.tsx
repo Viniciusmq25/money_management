@@ -32,7 +32,7 @@ export default function Layout() {
             className="p-2 text-muted hover:text-white hover:bg-surface-hover rounded-lg transition cursor-pointer"
             title={showMoney ? "Ocultar valores" : "Mostrar valores"}
           >
-            {showMoney ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {showMoney ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
           </button>
         </header>
 
@@ -43,7 +43,7 @@ export default function Layout() {
             className="p-2 text-muted hover:text-white hover:bg-surface-hover rounded-lg transition cursor-pointer"
             title={showMoney ? "Ocultar valores" : "Mostrar valores"}
           >
-            {showMoney ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {showMoney ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
           </button>
         </header>
 

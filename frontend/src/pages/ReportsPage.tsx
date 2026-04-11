@@ -15,6 +15,7 @@ import IncomeExpenseChart from "../components/reports/IncomeExpenseChart";
 import CategoryBreakdown from "../components/reports/CategoryBreakdown";
 import EquityEvolution from "../components/reports/EquityEvolution";
 import MonthlySummaryTable from "../components/reports/MonthlySummaryTable";
+import { SkeletonCard, SkeletonChart } from "../components/common/Skeleton";
 
 export default function ReportsPage() {
   const [viewMode, setViewMode] = useState<"days" | "months">("months");
@@ -203,8 +204,22 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-32 bg-surface animate-pulse rounded" />
+            <div className="h-3 w-56 bg-surface/60 animate-pulse rounded" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 w-28 bg-surface animate-pulse rounded-xl" />
+            <div className="h-9 w-36 bg-surface animate-pulse rounded-xl" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <SkeletonChart className="h-64" />
+        <SkeletonChart />
       </div>
     );
   }

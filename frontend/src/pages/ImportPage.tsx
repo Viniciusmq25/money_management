@@ -7,6 +7,8 @@ import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
 import type { ImportPreview } from "../types";
 import toast from "react-hot-toast";
 
+const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
+
 export default function ImportPage() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,9 +74,15 @@ export default function ImportPage() {
         <input {...getInputProps()} />
         <Upload className="w-10 h-10 text-muted mx-auto mb-3" />
         <p className="text-white font-medium">
-          {isDragActive ? "Solte o arquivo aqui..." : "Arraste um arquivo OFX ou CSV aqui"}
+          {isDragActive
+            ? "Solte o arquivo aqui..."
+            : isTouchDevice
+            ? "Toque para selecionar um arquivo"
+            : "Arraste um arquivo OFX ou CSV aqui"}
         </p>
-        <p className="text-muted text-sm mt-1">ou clique para selecionar</p>
+        {!isTouchDevice && (
+          <p className="text-muted text-sm mt-1">ou clique para selecionar</p>
+        )}
         <p className="text-muted/50 text-xs mt-3">Compatível com: Nubank, Itaú, Bradesco, Inter e outros bancos</p>
       </div>
 

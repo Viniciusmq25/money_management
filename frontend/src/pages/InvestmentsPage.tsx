@@ -23,6 +23,7 @@ import AllocationChart from "../components/investments/AllocationChart";
 import InvestmentTable from "../components/investments/InvestmentTable";
 import DepositModal from "../components/investments/DepositModal";
 import BinanceConfigModal from "../components/investments/BinanceConfigModal";
+import { SkeletonCard, SkeletonChart, SkeletonTable } from "../components/common/Skeleton";
 
 type Tab = "ALL" | "CRYPTO" | "FII" | "RENDA_FIXA" | "ACAO_BR" | "ACAO_GLOBAL";
 
@@ -158,8 +159,18 @@ export default function InvestmentsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="h-8 w-40 bg-surface animate-pulse rounded" />
+          <div className="h-9 w-32 bg-surface animate-pulse rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <SkeletonChart />
+          <SkeletonTable rows={6} className="lg:col-span-3" />
+        </div>
       </div>
     );
   }
