@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user
+from models.user import User
 from models.transaction import Transaction, TransactionType, TransactionSource
 from models.import_log import ImportLog
 from schemas import ImportPreviewResponse, ImportPreviewTransaction, ImportConfirmRequest
 from services.ofx_parser import parse_ofx
 from services.csv_parser import parse_csv
 
-router = APIRouter(prefix="/api/imports", tags=["imports"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/imports", tags=["imports"])
 
 CATEGORY_KEYWORDS = {
     "Alimentação": ["supermercado", "mercado", "restaurante", "lanchonete", "padaria", "ifood", "uber eats", "rappi", "pizza", "burguer", "açougue", "hortifruti"],
@@ -32,7 +33,11 @@ def suggest_category(description: str) -> str | None:
 
 
 @router.post("/preview", response_model=ImportPreviewResponse)
-async def preview_import(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def preview_import(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     content = await file.read()
     filename = file.filename or "unknown"
 
@@ -43,24 +48,25 @@ async def preview_import(file: UploadFile = File(...), db: Session = Depends(get
     else:
         raise HTTPException(status_code=400, detail="Formato não suportado. Use .ofx ou .csv")
 
-    # Check for duplicates by fit_id (OFX) and by date+amount+description (CSV fallback)
+    # Check for duplicates by fit_id (OFX) and by date+amount+description (CSV fallback) — scoped to user
     existing_fit_ids = set()
     existing_fingerprints = set()
 
     if transactions:
-        # Check fit_id duplicates (OFX files)
         fit_ids = [t["fit_id"] for t in transactions if t.get("fit_id")]
         if fit_ids:
-            existing = db.query(Transaction.fit_id).filter(Transaction.fit_id.in_(fit_ids)).all()
+            existing = db.query(Transaction.fit_id).filter(
+                Transaction.user_id == current_user.id,
+                Transaction.fit_id.in_(fit_ids),
+            ).all()
             existing_fit_ids = {e[0] for e in existing}
 
-        # Check date+amount+description duplicates (CSV files without fit_id)
-        # Create fingerprints for existing transactions
         csv_transactions = [t for t in transactions if not t.get("fit_id")]
         if csv_transactions:
             dates = [t["date"] for t in csv_transactions]
             existing_txns = db.query(Transaction.date, Transaction.amount, Transaction.description).filter(
-                Transaction.date.in_(dates)
+                Transaction.user_id == current_user.id,
+                Transaction.date.in_(dates),
             ).all()
             existing_fingerprints = {
                 (txn.date, abs(txn.amount), txn.description.strip().lower())
@@ -73,12 +79,10 @@ async def preview_import(file: UploadFile = File(...), db: Session = Depends(get
     duplicates_count = 0
 
     for t in transactions:
-        # Check duplicates by fit_id or by date+amount+description fingerprint
         is_dup_fit_id = t.get("fit_id") and t.get("fit_id") in existing_fit_ids
         txn_type = TransactionType.INCOME if t["amount"] >= 0 else TransactionType.EXPENSE
         amount = abs(t["amount"])
 
-        # Check fingerprint duplicate for CSV imports
         fingerprint = (t["date"], amount, t["description"].strip().lower())
         is_dup_fingerprint = not t.get("fit_id") and fingerprint in existing_fingerprints
 
@@ -115,14 +119,18 @@ async def preview_import(file: UploadFile = File(...), db: Session = Depends(get
 
 
 @router.post("/confirm")
-async def confirm_import(data: ImportConfirmRequest, db: Session = Depends(get_db)):
-    # Create import log
+async def confirm_import(
+    data: ImportConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     non_dup_txns = [t for t in data.transactions if not t.is_duplicate]
     if not non_dup_txns:
         raise HTTPException(status_code=400, detail="Nenhuma transação nova para importar")
 
     dates = [t.date for t in non_dup_txns]
     import_log = ImportLog(
+        user_id=current_user.id,
         filename=data.filename,
         bank=data.bank,
         date_start=min(dates),
@@ -134,6 +142,7 @@ async def confirm_import(data: ImportConfirmRequest, db: Session = Depends(get_d
 
     for t in non_dup_txns:
         txn = Transaction(
+            user_id=current_user.id,
             type=t.type,
             amount=t.amount,
             description=t.description,
@@ -149,6 +158,11 @@ async def confirm_import(data: ImportConfirmRequest, db: Session = Depends(get_d
 
 
 @router.get("/history")
-async def import_history(db: Session = Depends(get_db)):
-    logs = db.query(ImportLog).order_by(ImportLog.imported_at.desc()).limit(20).all()
+async def import_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    logs = db.query(ImportLog).filter(
+        ImportLog.user_id == current_user.id
+    ).order_by(ImportLog.imported_at.desc()).limit(20).all()
     return logs

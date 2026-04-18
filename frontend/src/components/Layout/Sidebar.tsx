@@ -14,12 +14,14 @@ import {
   EyeOff,
   KeyRound,
   Loader2,
+  Users,
 } from "lucide-react";
 import { useMoneyVisibility } from "../../contexts/MoneyVisibilityContext";
 import api from "../../api/client";
 import toast from "react-hot-toast";
+import { isAdmin, isImpersonating } from "../../utils/jwt";
 
-const links = [
+const baseLinks = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transações" },
   { to: "/investments", icon: TrendingUp, label: "Investimentos" },
@@ -27,6 +29,8 @@ const links = [
   { to: "/reports", icon: BarChart3, label: "Relatórios" },
   { to: "/import", icon: Upload, label: "Importar" },
 ];
+
+const adminLink = { to: "/admin", icon: Users, label: "Administração" };
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -41,6 +45,7 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
   const [passwordForm, setPasswordForm] = useState({ current: "", new: "", confirm: "" });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const links = isAdmin() && !isImpersonating() ? [...baseLinks, adminLink] : baseLinks;
 
   const handleLogout = () => {
     localStorage.removeItem("token");

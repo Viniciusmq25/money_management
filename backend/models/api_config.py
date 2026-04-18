@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from database import Base
 from cryptography.fernet import Fernet
@@ -30,11 +30,13 @@ def get_cipher():
 
 
 class APIConfig(Base):
-    """Store encrypted API credentials for external services."""
+    """Store encrypted API credentials for external services (per user)."""
     __tablename__ = "api_configs"
+    __table_args__ = (UniqueConstraint("user_id", "service", name="uq_api_configs_user_service"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    service = Column(String(50), nullable=False, unique=True)  # e.g., "binance"
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    service = Column(String(50), nullable=False)  # e.g., "binance"
     api_key = Column(String(500), nullable=False)  # encrypted
     api_secret = Column(String(500), nullable=False)  # encrypted
     is_active = Column(Boolean, default=True)

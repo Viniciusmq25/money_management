@@ -7,7 +7,7 @@ import os
 
 from database import engine, Base, SessionLocal
 from models import *  # noqa: F401, F403
-from routers import auth, categories, transactions, investments, goals, imports, dashboard
+from routers import auth, categories, transactions, investments, goals, imports, dashboard, admin
 from seed import seed_categories
 from sqlalchemy import text
 
@@ -79,6 +79,74 @@ def bootstrap_admin_user(db_engine):
         log.warning(f"Admin bootstrap skipped: {e}")
 
 
+DOMAIN_TABLES_USER_ID = [
+    "transactions",
+    "categories",
+    "investments",
+    "investment_deposits",
+    "investment_redemptions",
+    "stock_transactions",
+    "goals",
+    "import_logs",
+    "api_configs",
+]
+
+
+def migrate_add_user_id_columns(db_engine):
+    """Add user_id FK to all domain tables, backfill to admin user, then SET NOT NULL.
+    Also fixes api_configs unique constraint to (user_id, service)."""
+    import logging
+    log = logging.getLogger(__name__)
+    try:
+        from models.user import User
+        db = SessionLocal()
+        try:
+            admin = db.query(User).filter(User.is_admin == True).order_by(User.id).first()
+            if admin is None:
+                log.warning("No admin user; skipping user_id column migration")
+                return
+            admin_id = admin.id
+        finally:
+            db.close()
+
+        with db_engine.connect() as conn:
+            for table in DOMAIN_TABLES_USER_ID:
+                # Skip if table doesn't exist yet (fresh install — create_all will set NOT NULL)
+                exists = conn.execute(text(
+                    "SELECT 1 FROM information_schema.tables WHERE table_name = :t"
+                ), {"t": table}).fetchone()
+                if not exists:
+                    continue
+                conn.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS user_id INTEGER "
+                    f"REFERENCES users(id) ON DELETE CASCADE"
+                ))
+                conn.execute(text(
+                    f"UPDATE {table} SET user_id = :uid WHERE user_id IS NULL"
+                ), {"uid": admin_id})
+                conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN user_id SET NOT NULL"))
+                conn.execute(text(
+                    f"CREATE INDEX IF NOT EXISTS ix_{table}_user_id ON {table}(user_id)"
+                ))
+            # Fix api_configs unique constraint: drop old (service) unique, add (user_id, service)
+            conn.execute(text(
+                "ALTER TABLE api_configs DROP CONSTRAINT IF EXISTS api_configs_service_key"
+            ))
+            # idempotent: check constraint exists by name before adding
+            existing_uq = conn.execute(text(
+                "SELECT 1 FROM pg_constraint WHERE conname = 'uq_api_configs_user_service'"
+            )).fetchone()
+            if not existing_uq:
+                conn.execute(text(
+                    "ALTER TABLE api_configs ADD CONSTRAINT uq_api_configs_user_service "
+                    "UNIQUE (user_id, service)"
+                ))
+            conn.commit()
+        log.info("user_id columns migrated; existing rows assigned to admin id=%s", admin_id)
+    except Exception as e:
+        log.warning(f"user_id migration skipped: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Migrate enum values first (before create_all)
@@ -89,10 +157,15 @@ async def lifespan(app: FastAPI):
     migrate_stock_data(engine)
     # Bootstrap admin user from legacy password_hash
     bootstrap_admin_user(engine)
-    # Seed default categories
+    # Add user_id columns to all domain tables, backfill to admin
+    migrate_add_user_id_columns(engine)
+    # Seed default categories for the admin user (no-op if already present)
     db = SessionLocal()
     try:
-        seed_categories(db)
+        from models.user import User
+        admin = db.query(User).filter(User.is_admin == True).order_by(User.id).first()
+        if admin:
+            seed_categories(db, admin.id)
     finally:
         db.close()
     yield
@@ -125,6 +198,7 @@ app.include_router(investments.router)
 app.include_router(goals.router)
 app.include_router(imports.router)
 app.include_router(dashboard.router)
+app.include_router(admin.router)
 # Health check
 @app.get("/api/health")
 async def health():

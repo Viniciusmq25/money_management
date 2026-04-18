@@ -4,6 +4,7 @@ from sqlalchemy import func, extract, desc, case
 from datetime import date, timedelta
 from database import get_db
 from auth import get_current_user
+from models.user import User
 from models.transaction import Transaction, TransactionType
 from models.category import Category
 from models.investment import Investment
@@ -13,7 +14,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("/summary")
@@ -23,8 +24,10 @@ async def dashboard_summary(
     end_date: str | None = Query(default=None),
     granularity: str = Query(default="month"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     today = date.today()
+    uid = current_user.id
 
     # Determine date range: explicit dates take priority over months
     if start_date and end_date:
@@ -45,23 +48,24 @@ async def dashboard_summary(
             0,
         )
     ).filter(
+        Transaction.user_id == uid,
         Transaction.date <= today,
     ).scalar()
 
-    # Period totals (filtered by selected range)
     income = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+        Transaction.user_id == uid,
         Transaction.type == TransactionType.INCOME,
         Transaction.date >= range_start,
         Transaction.date <= range_end,
     ).scalar()
 
     expense = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+        Transaction.user_id == uid,
         Transaction.type == TransactionType.EXPENSE,
         Transaction.date >= range_start,
         Transaction.date <= range_end,
     ).scalar()
 
-    # Trend data grouped by granularity
     trend = {}
     if granularity == "day":
         daily_data = db.query(
@@ -69,6 +73,7 @@ async def dashboard_summary(
             Transaction.type,
             func.sum(Transaction.amount).label("total"),
         ).filter(
+            Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
         ).group_by(
@@ -91,6 +96,7 @@ async def dashboard_summary(
             Transaction.type,
             func.sum(Transaction.amount).label("total"),
         ).filter(
+            Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
         ).group_by(
@@ -110,13 +116,13 @@ async def dashboard_summary(
 
     monthly_trend = sorted(trend.values(), key=lambda x: x["month"])
 
-    # Expense breakdown by category for selected period
     cat_data = db.query(
         Category.name,
         Category.color,
         Category.icon,
         func.sum(Transaction.amount).label("total"),
     ).join(Transaction, Transaction.category_id == Category.id).filter(
+        Transaction.user_id == uid,
         Transaction.type == TransactionType.EXPENSE,
         Transaction.date >= range_start,
         Transaction.date <= range_end,
@@ -127,7 +133,6 @@ async def dashboard_summary(
         for row in cat_data
     ]
 
-    # Category breakdown per period (for interactive charts)
     trend_by_category: dict[str, dict] = {}
     if granularity == "day":
         cat_trend_data = db.query(
@@ -137,6 +142,7 @@ async def dashboard_summary(
             Category.color,
             func.sum(Transaction.amount).label("total"),
         ).join(Category, Transaction.category_id == Category.id).filter(
+            Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
         ).group_by(
@@ -165,6 +171,7 @@ async def dashboard_summary(
             Category.color,
             func.sum(Transaction.amount).label("total"),
         ).join(Category, Transaction.category_id == Category.id).filter(
+            Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
         ).group_by(
@@ -186,15 +193,13 @@ async def dashboard_summary(
                 "value": float(row.total),
             })
 
-    # Sort each period's categories by value desc
     for period_data in trend_by_category.values():
         period_data["income"].sort(key=lambda x: x["value"], reverse=True)
         period_data["expense"].sort(key=lambda x: x["value"], reverse=True)
 
-    # Recent transactions
     recent = db.query(Transaction).options(
         joinedload(Transaction.category)
-    ).order_by(desc(Transaction.date), desc(Transaction.id)).limit(5).all()
+    ).filter(Transaction.user_id == uid).order_by(desc(Transaction.date), desc(Transaction.id)).limit(5).all()
 
     recent_list = []
     for t in recent:
@@ -207,14 +212,12 @@ async def dashboard_summary(
             "category": {"name": t.category.name, "color": t.category.color, "icon": t.category.icon} if t.category else None,
         })
 
-    # Investment totals — reuse enrich_investments to avoid duplicating stock_transaction logic
-    investments = db.query(Investment).all()
+    investments = db.query(Investment).filter(Investment.user_id == uid).all()
     enriched = await _enrich_investments(investments, db)
 
     total_invested = sum(e["total_invested"] or 0 for e in enriched)
     total_current = sum(e["current_value"] if e["current_value"] is not None else (e["total_invested"] or 0) for e in enriched)
 
-    # Fetch rates for market data widget
     market_data = {"rates": {"selic_annual": 0, "cdi_annual": 0}}
     try:
         rates = await get_selic_cdi_rates(db)

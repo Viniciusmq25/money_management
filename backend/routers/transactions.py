@@ -4,10 +4,11 @@ from sqlalchemy import desc
 from datetime import date
 from database import get_db
 from auth import get_current_user
+from models.user import User
 from models.transaction import Transaction, TransactionType
 from schemas import TransactionCreate, TransactionUpdate, TransactionResponse
 
-router = APIRouter(prefix="/api/transactions", tags=["transactions"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
 
 def _apply_filters(query, type, category_id, date_from, date_to, search):
@@ -34,8 +35,11 @@ async def list_transactions(
     limit: int = Query(default=50, le=500),
     offset: int = 0,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Transaction).options(joinedload(Transaction.category))
+    query = db.query(Transaction).options(joinedload(Transaction.category)).filter(
+        Transaction.user_id == current_user.id
+    )
     query = _apply_filters(query, type, category_id, date_from, date_to, search)
     return query.order_by(desc(Transaction.date), desc(Transaction.id)).offset(offset).limit(limit).all()
 
@@ -48,14 +52,20 @@ async def count_transactions(
     date_to: date | None = None,
     search: str | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    query = _apply_filters(db.query(Transaction), type, category_id, date_from, date_to, search)
+    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    query = _apply_filters(query, type, category_id, date_from, date_to, search)
     return {"count": query.count()}
 
 
 @router.post("", response_model=TransactionResponse)
-async def create_transaction(data: TransactionCreate, db: Session = Depends(get_db)):
-    txn = Transaction(**data.model_dump())
+async def create_transaction(
+    data: TransactionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    txn = Transaction(user_id=current_user.id, **data.model_dump())
     db.add(txn)
     db.commit()
     db.refresh(txn)
@@ -63,8 +73,13 @@ async def create_transaction(data: TransactionCreate, db: Session = Depends(get_
 
 
 @router.put("/{id}", response_model=TransactionResponse)
-async def update_transaction(id: int, data: TransactionUpdate, db: Session = Depends(get_db)):
-    txn = db.query(Transaction).filter(Transaction.id == id).first()
+async def update_transaction(
+    id: int,
+    data: TransactionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    txn = db.query(Transaction).filter(Transaction.id == id, Transaction.user_id == current_user.id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transação não encontrada")
     for key, val in data.model_dump(exclude_unset=True).items():
@@ -75,8 +90,12 @@ async def update_transaction(id: int, data: TransactionUpdate, db: Session = Dep
 
 
 @router.delete("/{id}")
-async def delete_transaction(id: int, db: Session = Depends(get_db)):
-    txn = db.query(Transaction).filter(Transaction.id == id).first()
+async def delete_transaction(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    txn = db.query(Transaction).filter(Transaction.id == id, Transaction.user_id == current_user.id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transação não encontrada")
     db.delete(txn)

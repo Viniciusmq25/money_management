@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user
+from models.user import User
 from models.investment import Investment, InvestmentType
 from models.investment_deposit import InvestmentDeposit
 from models.investment_redemption import InvestmentRedemption
@@ -26,7 +27,7 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/investments", tags=["investments"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/api/investments", tags=["investments"])
 
 
 # === Batch Enrichment ===
@@ -188,8 +189,12 @@ async def enrich_investment(inv: Investment, db: Session) -> dict:
 # === CRUD ===
 
 @router.get("", response_model=list[InvestmentResponse])
-async def list_investments(type: InvestmentType | None = None, db: Session = Depends(get_db)):
-    query = db.query(Investment)
+async def list_investments(
+    type: InvestmentType | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = db.query(Investment).filter(Investment.user_id == current_user.id)
     if type:
         query = query.filter(Investment.type == type)
     investments = query.order_by(Investment.type, Investment.ticker).all()
@@ -197,10 +202,15 @@ async def list_investments(type: InvestmentType | None = None, db: Session = Dep
 
 
 @router.post("", response_model=InvestmentResponse)
-async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db)):
+async def create_investment(
+    data: InvestmentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     existing = db.query(Investment).filter(
+        Investment.user_id == current_user.id,
         Investment.ticker == data.ticker.upper(),
-        Investment.type == data.type
+        Investment.type == data.type,
     ).first()
 
     if existing and data.type in STOCK_TYPES:
@@ -228,7 +238,7 @@ async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db
     if data.type in STOCK_TYPES:
         payload["quantity"] = 0
         payload["avg_price"] = 0
-    inv = Investment(**payload)
+    inv = Investment(user_id=current_user.id, **payload)
     db.add(inv)
     db.commit()
     db.refresh(inv)
@@ -236,8 +246,13 @@ async def create_investment(data: InvestmentCreate, db: Session = Depends(get_db
 
 
 @router.put("/{id}", response_model=InvestmentResponse)
-async def update_investment(id: int, data: InvestmentUpdate, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == id).first()
+async def update_investment(
+    id: int,
+    data: InvestmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inv = db.query(Investment).filter(Investment.id == id, Investment.user_id == current_user.id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investimento não encontrado")
     for key, val in data.model_dump(exclude_unset=True).items():
@@ -248,8 +263,12 @@ async def update_investment(id: int, data: InvestmentUpdate, db: Session = Depen
 
 
 @router.delete("/{id}")
-async def delete_investment(id: int, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == id).first()
+async def delete_investment(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inv = db.query(Investment).filter(Investment.id == id, Investment.user_id == current_user.id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Investimento não encontrado")
     db.delete(inv)
@@ -258,8 +277,11 @@ async def delete_investment(id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/summary")
-async def investment_summary(db: Session = Depends(get_db)):
-    investments = db.query(Investment).all()
+async def investment_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    investments = db.query(Investment).filter(Investment.user_id == current_user.id).all()
     enriched = await enrich_investments(investments, db)
 
     by_type = {}
@@ -288,12 +310,19 @@ async def investment_summary(db: Session = Depends(get_db)):
 # === Binance Integration ===
 
 @router.get("/binance/status", response_model=BinanceConfigResponse)
-async def binance_status(db: Session = Depends(get_db)):
-    return await get_binance_status(db)
+async def binance_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await get_binance_status(db, current_user.id)
 
 
 @router.post("/binance/config", response_model=BinanceConfigResponse)
-async def configure_binance(data: BinanceConfigCreate, db: Session = Depends(get_db)):
+async def configure_binance(
+    data: BinanceConfigCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
         await test_connection(data.api_key, data.api_secret)
     except BinanceError as e:
@@ -301,23 +330,32 @@ async def configure_binance(data: BinanceConfigCreate, db: Session = Depends(get
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao conectar na Binance: {str(e)}")
 
-    config = db.query(APIConfig).filter(APIConfig.service == "binance").first()
+    config = db.query(APIConfig).filter(
+        APIConfig.user_id == current_user.id,
+        APIConfig.service == "binance",
+    ).first()
     if config:
         config.set_credentials(data.api_key, data.api_secret)
         config.is_active = True
     else:
-        config = APIConfig(service="binance")
+        config = APIConfig(user_id=current_user.id, service="binance")
         config.set_credentials(data.api_key, data.api_secret)
         db.add(config)
 
     db.commit()
     db.refresh(config)
-    return await get_binance_status(db)
+    return await get_binance_status(db, current_user.id)
 
 
 @router.delete("/binance/config")
-async def remove_binance_config(db: Session = Depends(get_db)):
-    config = db.query(APIConfig).filter(APIConfig.service == "binance").first()
+async def remove_binance_config(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    config = db.query(APIConfig).filter(
+        APIConfig.user_id == current_user.id,
+        APIConfig.service == "binance",
+    ).first()
     if config:
         db.delete(config)
         db.commit()
@@ -325,9 +363,12 @@ async def remove_binance_config(db: Session = Depends(get_db)):
 
 
 @router.post("/binance/sync", response_model=BinanceSyncResponse)
-async def sync_binance(db: Session = Depends(get_db)):
+async def sync_binance(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
-        return await sync_binance_investments(db)
+        return await sync_binance_investments(db, current_user.id)
     except BinanceError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -336,21 +377,36 @@ async def sync_binance(db: Session = Depends(get_db)):
 
 # === Investment Deposits ===
 
-@router.get("/{investment_id}/deposits", response_model=list[InvestmentDepositResponse])
-async def list_deposits(investment_id: int, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == investment_id).first()
+def _get_owned_investment(db: Session, user_id: int, investment_id: int) -> Investment:
+    inv = db.query(Investment).filter(
+        Investment.id == investment_id,
+        Investment.user_id == user_id,
+    ).first()
     if not inv:
-        raise HTTPException(status_code=404, detail="Investimento n��o encontrado")
+        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+    return inv
+
+
+@router.get("/{investment_id}/deposits", response_model=list[InvestmentDepositResponse])
+async def list_deposits(
+    investment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inv = _get_owned_investment(db, current_user.id, investment_id)
     return sorted(inv.deposits, key=lambda d: d.deposit_date)
 
 
 @router.post("/{investment_id}/deposits", response_model=InvestmentDepositResponse)
-async def create_deposit(investment_id: int, data: InvestmentDepositCreate, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == investment_id).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="Investimento não encontrado")
-
+async def create_deposit(
+    investment_id: int,
+    data: InvestmentDepositCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_owned_investment(db, current_user.id, investment_id)
     deposit = InvestmentDeposit(
+        user_id=current_user.id,
         investment_id=investment_id,
         amount=data.amount,
         deposit_date=data.deposit_date,
@@ -362,10 +418,17 @@ async def create_deposit(investment_id: int, data: InvestmentDepositCreate, db: 
 
 
 @router.put("/{investment_id}/deposits/{deposit_id}", response_model=InvestmentDepositResponse)
-async def update_deposit(investment_id: int, deposit_id: int, data: InvestmentDepositCreate, db: Session = Depends(get_db)):
+async def update_deposit(
+    investment_id: int,
+    deposit_id: int,
+    data: InvestmentDepositCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     deposit = db.query(InvestmentDeposit).filter(
         InvestmentDeposit.id == deposit_id,
         InvestmentDeposit.investment_id == investment_id,
+        InvestmentDeposit.user_id == current_user.id,
     ).first()
     if not deposit:
         raise HTTPException(status_code=404, detail="Aporte não encontrado")
@@ -377,13 +440,19 @@ async def update_deposit(investment_id: int, deposit_id: int, data: InvestmentDe
 
 
 @router.delete("/{investment_id}/deposits/{deposit_id}")
-async def delete_deposit(investment_id: int, deposit_id: int, db: Session = Depends(get_db)):
+async def delete_deposit(
+    investment_id: int,
+    deposit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     deposit = db.query(InvestmentDeposit).filter(
         InvestmentDeposit.id == deposit_id,
         InvestmentDeposit.investment_id == investment_id,
+        InvestmentDeposit.user_id == current_user.id,
     ).first()
     if not deposit:
-        raise HTTPException(status_code=404, detail="Aporte n��o encontrado")
+        raise HTTPException(status_code=404, detail="Aporte não encontrado")
     db.delete(deposit)
     db.commit()
     return {"ok": True}
@@ -392,20 +461,25 @@ async def delete_deposit(investment_id: int, deposit_id: int, db: Session = Depe
 # === Investment Redemptions ===
 
 @router.get("/{investment_id}/redemptions", response_model=list[InvestmentRedemptionResponse])
-async def list_redemptions(investment_id: int, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == investment_id).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+async def list_redemptions(
+    investment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inv = _get_owned_investment(db, current_user.id, investment_id)
     return sorted(inv.redemptions, key=lambda r: r.redemption_date)
 
 
 @router.post("/{investment_id}/redemptions", response_model=InvestmentRedemptionResponse)
-async def create_redemption(investment_id: int, data: InvestmentRedemptionCreate, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == investment_id).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="Investimento não encontrado")
-
+async def create_redemption(
+    investment_id: int,
+    data: InvestmentRedemptionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_owned_investment(db, current_user.id, investment_id)
     redemption = InvestmentRedemption(
+        user_id=current_user.id,
         investment_id=investment_id,
         amount=data.amount,
         redemption_date=data.redemption_date,
@@ -417,10 +491,17 @@ async def create_redemption(investment_id: int, data: InvestmentRedemptionCreate
 
 
 @router.put("/{investment_id}/redemptions/{redemption_id}", response_model=InvestmentRedemptionResponse)
-async def update_redemption(investment_id: int, redemption_id: int, data: InvestmentRedemptionCreate, db: Session = Depends(get_db)):
+async def update_redemption(
+    investment_id: int,
+    redemption_id: int,
+    data: InvestmentRedemptionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     redemption = db.query(InvestmentRedemption).filter(
         InvestmentRedemption.id == redemption_id,
         InvestmentRedemption.investment_id == investment_id,
+        InvestmentRedemption.user_id == current_user.id,
     ).first()
     if not redemption:
         raise HTTPException(status_code=404, detail="Resgate não encontrado")
@@ -432,10 +513,16 @@ async def update_redemption(investment_id: int, redemption_id: int, data: Invest
 
 
 @router.delete("/{investment_id}/redemptions/{redemption_id}")
-async def delete_redemption(investment_id: int, redemption_id: int, db: Session = Depends(get_db)):
+async def delete_redemption(
+    investment_id: int,
+    redemption_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     redemption = db.query(InvestmentRedemption).filter(
         InvestmentRedemption.id == redemption_id,
         InvestmentRedemption.investment_id == investment_id,
+        InvestmentRedemption.user_id == current_user.id,
     ).first()
     if not redemption:
         raise HTTPException(status_code=404, detail="Resgate não encontrado")
@@ -447,22 +534,28 @@ async def delete_redemption(investment_id: int, redemption_id: int, db: Session 
 # === Stock Transactions ===
 
 @router.get("/{investment_id}/stock-transactions", response_model=list[StockTransactionResponse])
-async def list_stock_transactions(investment_id: int, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == investment_id).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+async def list_stock_transactions(
+    investment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inv = _get_owned_investment(db, current_user.id, investment_id)
     return sorted(inv.stock_transactions, key=lambda t: t.date)
 
 
 @router.post("/{investment_id}/stock-transactions", response_model=StockTransactionResponse)
-async def create_stock_transaction(investment_id: int, data: StockTransactionCreate, db: Session = Depends(get_db)):
-    inv = db.query(Investment).filter(Investment.id == investment_id).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="Investimento não encontrado")
+async def create_stock_transaction(
+    investment_id: int,
+    data: StockTransactionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    inv = _get_owned_investment(db, current_user.id, investment_id)
     if inv.type not in STOCK_TYPES:
         raise HTTPException(status_code=400, detail="Movimentações de ações só são permitidas para FII, ACAO_BR e ACAO_GLOBAL")
 
     tx = StockTransaction(
+        user_id=current_user.id,
         investment_id=investment_id,
         type=data.type,
         quantity=data.quantity,
@@ -476,10 +569,17 @@ async def create_stock_transaction(investment_id: int, data: StockTransactionCre
 
 
 @router.put("/{investment_id}/stock-transactions/{tx_id}", response_model=StockTransactionResponse)
-async def update_stock_transaction(investment_id: int, tx_id: int, data: StockTransactionCreate, db: Session = Depends(get_db)):
+async def update_stock_transaction(
+    investment_id: int,
+    tx_id: int,
+    data: StockTransactionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     tx = db.query(StockTransaction).filter(
         StockTransaction.id == tx_id,
         StockTransaction.investment_id == investment_id,
+        StockTransaction.user_id == current_user.id,
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Movimentação não encontrada")
@@ -493,10 +593,16 @@ async def update_stock_transaction(investment_id: int, tx_id: int, data: StockTr
 
 
 @router.delete("/{investment_id}/stock-transactions/{tx_id}")
-async def delete_stock_transaction(investment_id: int, tx_id: int, db: Session = Depends(get_db)):
+async def delete_stock_transaction(
+    investment_id: int,
+    tx_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     tx = db.query(StockTransaction).filter(
         StockTransaction.id == tx_id,
         StockTransaction.investment_id == investment_id,
+        StockTransaction.user_id == current_user.id,
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Movimentação não encontrada")

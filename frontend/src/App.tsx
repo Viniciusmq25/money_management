@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout/Layout";
 import LoginPage from "./pages/LoginPage";
 import { Loader2 } from "lucide-react";
+import { isAdmin } from "./utils/jwt";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
@@ -10,6 +11,7 @@ const InvestmentsPage = lazy(() => import("./pages/InvestmentsPage"));
 const GoalsPage = lazy(() => import("./pages/GoalsPage"));
 const ImportPage = lazy(() => import("./pages/ImportPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
 
 function LoadingSpinner() {
   return (
@@ -19,9 +21,10 @@ function LoadingSpinner() {
   );
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
   const token = localStorage.getItem("token");
   if (!token) return <Navigate to="/login" replace />;
+  if (requireAdmin && !isAdmin()) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -44,6 +47,14 @@ export default function App() {
           <Route path="goals" element={<GoalsPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route
+            path="admin"
+            element={
+              <ProtectedRoute requireAdmin>
+                <AdminPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

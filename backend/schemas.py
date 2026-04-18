@@ -23,6 +23,37 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+# === Admin / Users ===
+USERNAME_PATTERN = r'^[a-z0-9]{4,}$'
+
+
+class UserCreateAdmin(BaseModel):
+    username: str = Field(..., max_length=50)
+    password: str = Field(..., min_length=6)
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(USERNAME_PATTERN, v):
+            raise ValueError('Username deve ter 4+ caracteres, apenas letras minúsculas e números')
+        return v
+
+
+class UserResetPassword(BaseModel):
+    new_password: str = Field(..., min_length=6)
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    is_admin: bool
+    created_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 # === Category ===
 class CategoryCreate(BaseModel):
     name: str = Field(..., max_length=100, min_length=1)

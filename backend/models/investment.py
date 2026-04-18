@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum as SAEnum
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -17,6 +17,7 @@ class Investment(Base):
     __tablename__ = "investments"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     type = Column(SAEnum(InvestmentType), nullable=False)
     ticker = Column(String(20), nullable=False)
     name = Column(String(150), nullable=False)

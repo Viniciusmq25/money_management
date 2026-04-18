@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
+import ImpersonationBanner from "../ImpersonationBanner";
 import { useMoneyVisibility } from "../../contexts/MoneyVisibilityContext";
 
 export default function Layout() {
@@ -15,6 +16,7 @@ export default function Layout() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        <ImpersonationBanner />
         {/* Desktop header — visible only on md+ */}
         <header className="hidden md:flex items-center justify-between px-6 py-4 bg-primary-light border-b border-border">
           <div className="flex items-center gap-2">

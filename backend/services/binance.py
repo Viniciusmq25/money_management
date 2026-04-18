@@ -130,13 +130,14 @@ async def get_avg_buy_price(api_key: str, api_secret: str, symbol: str) -> float
         return None
 
 
-async def sync_binance_investments(db: Session) -> dict:
+async def sync_binance_investments(db: Session, user_id: int) -> dict:
     """
-    Sync Binance account balances to investments.
+    Sync Binance account balances to investments for a specific user.
     Returns summary of changes.
     """
-    # Get API config
+    # Get API config for this user
     config = db.query(APIConfig).filter(
+        APIConfig.user_id == user_id,
         APIConfig.service == "binance",
         APIConfig.is_active == True
     ).first()
@@ -205,8 +206,9 @@ async def sync_binance_investments(db: Session) -> dict:
                 skipped += 1
                 continue
         
-        # Check if investment already exists
+        # Check if investment already exists for this user
         existing = db.query(Investment).filter(
+            Investment.user_id == user_id,
             Investment.type == InvestmentType.CRYPTO,
             Investment.ticker == asset
         ).first()
@@ -228,6 +230,7 @@ async def sync_binance_investments(db: Session) -> dict:
         else:
             # Create new investment
             new_inv = Investment(
+                user_id=user_id,
                 type=InvestmentType.CRYPTO,
                 ticker=asset,
                 name=f"{asset} (Binance)",
@@ -252,9 +255,10 @@ async def sync_binance_investments(db: Session) -> dict:
     }
 
 
-async def get_binance_status(db: Session) -> dict:
-    """Get current Binance integration status."""
+async def get_binance_status(db: Session, user_id: int) -> dict:
+    """Get current Binance integration status for a user."""
     config = db.query(APIConfig).filter(
+        APIConfig.user_id == user_id,
         APIConfig.service == "binance"
     ).first()
     

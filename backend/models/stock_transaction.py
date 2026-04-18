@@ -8,6 +8,7 @@ class StockTransaction(Base):
     __tablename__ = "stock_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     investment_id = Column(Integer, ForeignKey("investments.id", ondelete="CASCADE"), nullable=False, index=True)
     type = Column(SAEnum("COMPRA", "VENDA", name="stocktransactiontype"), nullable=False)
     quantity = Column(Float, nullable=False)

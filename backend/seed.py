@@ -23,21 +23,21 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-def seed_categories(db: Session):
-    """Insert default categories if none exist, and add any missing defaults."""
-    existing = db.query(Category).count()
-    if existing == 0:
+def seed_categories(db: Session, user_id: int):
+    """Insert default categories for a user, adding any missing defaults."""
+    user_cats = db.query(Category).filter(Category.user_id == user_id).count()
+    if user_cats == 0:
         for cat_data in DEFAULT_CATEGORIES:
-            db.add(Category(**cat_data))
+            db.add(Category(user_id=user_id, **cat_data))
         db.commit()
         return
 
-    # Add any missing default categories to existing databases
     for cat_data in DEFAULT_CATEGORIES:
         exists = db.query(Category).filter(
+            Category.user_id == user_id,
             Category.name == cat_data["name"],
             Category.type == cat_data["type"],
         ).first()
         if not exists:
-            db.add(Category(**cat_data))
+            db.add(Category(user_id=user_id, **cat_data))
     db.commit()

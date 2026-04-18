@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime
+from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -8,6 +8,7 @@ class ImportLog(Base):
     __tablename__ = "import_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     filename = Column(String(255), nullable=False)
     bank = Column(String(100), nullable=True)
     date_start = Column(Date, nullable=True)
