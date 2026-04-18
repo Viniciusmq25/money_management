@@ -99,6 +99,7 @@ export default function AdminPage() {
       localStorage.setItem("token", access_token);
       toast.success(`Personificando ${user.username}`);
       navigate("/");
+      window.location.reload();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Erro ao personificar");
     }

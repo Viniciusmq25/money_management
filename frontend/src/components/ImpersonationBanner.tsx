@@ -22,7 +22,9 @@ export default function ImpersonationBanner() {
     api.get<MeResponse>("/auth/me").then((r) => setMe(r.data)).catch(() => {});
   }, []);
 
-  if (!isImpersonating() || !me?.impersonating) return null;
+  if (!isImpersonating()) return null;
+
+  const username = me?.user?.username ?? "...";
 
   const handleExit = async () => {
     setExiting(true);
@@ -43,7 +45,7 @@ export default function ImpersonationBanner() {
       <div className="flex items-center gap-2 min-w-0">
         <Eye className="w-4 h-4 flex-shrink-0" />
         <span className="text-sm truncate">
-          Visualizando como <strong>{me.user.username}</strong>
+          Visualizando como <strong>{username}</strong>
         </span>
       </div>
       <button
