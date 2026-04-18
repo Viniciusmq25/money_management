@@ -9,6 +9,7 @@ from models.app_settings import AppSettings
 from models.investment_deposit import InvestmentDeposit
 from models.investment_redemption import InvestmentRedemption
 from models.stock_transaction import StockTransaction
+from models.user import User
 
 __all__ = [
     "Category",
@@ -22,4 +23,5 @@ __all__ = [
     "InvestmentDeposit",
     "InvestmentRedemption",
     "StockTransaction",
+    "User",
 ]

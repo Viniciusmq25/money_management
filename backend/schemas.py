@@ -9,6 +9,7 @@ import re
 
 # === Auth ===
 class LoginRequest(BaseModel):
+    username: Optional[str] = None
     password: str
 
 

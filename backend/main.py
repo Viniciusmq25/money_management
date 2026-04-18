@@ -50,6 +50,35 @@ def migrate_stock_data(db_engine):
         logging.getLogger(__name__).warning(f"Stock data migration skipped: {e}")
 
 
+def bootstrap_admin_user(db_engine):
+    """Create initial admin user 'vini' from existing password hash, then drop it from app_settings."""
+    import logging
+    log = logging.getLogger(__name__)
+    try:
+        from models.user import User
+        from models.app_settings import AppSettings
+        from config import get_settings as _get_settings
+        db = SessionLocal()
+        try:
+            if db.query(User).count() > 0:
+                return
+            existing = db.query(AppSettings).filter(AppSettings.key == "password_hash").first()
+            pwd_hash = existing.value if existing else _get_settings().APP_PASSWORD_HASH
+            if not pwd_hash:
+                log.warning("No password hash available to bootstrap admin user")
+                return
+            admin = User(username="vini", password_hash=pwd_hash, is_admin=True)
+            db.add(admin)
+            if existing:
+                db.delete(existing)
+            db.commit()
+            log.info("Admin user 'vini' bootstrapped from existing password hash")
+        finally:
+            db.close()
+    except Exception as e:
+        log.warning(f"Admin bootstrap skipped: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Migrate enum values first (before create_all)
@@ -58,6 +87,8 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     # Wipe quantity/avg_price for stock types (movimentações are source of truth)
     migrate_stock_data(engine)
+    # Bootstrap admin user from legacy password_hash
+    bootstrap_admin_user(engine)
     # Seed default categories
     db = SessionLocal()
     try:
