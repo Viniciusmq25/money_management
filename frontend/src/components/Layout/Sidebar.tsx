@@ -49,7 +49,7 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    navigate("/login");
+    window.location.href = "/money/login";
   };
 
   const handleNavClick = () => {
