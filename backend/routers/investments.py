@@ -22,7 +22,7 @@ from services.brapi import get_fii_quotes, get_stock_quotes
 from services.bcb import get_selic_cdi_rates
 from services.binance import sync_binance_investments, get_binance_status, test_connection, BinanceError
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ def _calculate_caixinha_value(deposits, redemptions, inv: Investment, rates: dic
     if annual_rate <= 0:
         return net
 
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     daily_rate = (1 + annual_rate / 100) ** (1 / 252) - 1
     total_value = 0
 

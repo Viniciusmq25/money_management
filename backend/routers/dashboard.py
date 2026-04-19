@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract, desc, case
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from database import get_db
 from auth import get_current_user
 from models.user import User
@@ -26,7 +26,7 @@ async def dashboard_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     uid = current_user.id
 
     # Determine date range: explicit dates take priority over months
