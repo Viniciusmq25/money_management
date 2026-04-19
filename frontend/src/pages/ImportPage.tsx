@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, FileSpreadsheet, Check, AlertTriangle, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "../api/client";
 import { formatCurrency, formatDate } from "../utils/format";
 import { useMoneyVisibility } from "../contexts/MoneyVisibilityContext";
@@ -10,6 +11,7 @@ import toast from "react-hot-toast";
 const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
 
 export default function ImportPage() {
+  const qc = useQueryClient();
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -53,6 +55,9 @@ export default function ImportPage() {
         transactions: preview.transactions,
       });
       toast.success(`${data.imported} transações importadas!`);
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["transactions-count"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
       setDone(true);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Erro ao importar");
