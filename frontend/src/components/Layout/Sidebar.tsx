@@ -21,10 +21,13 @@ import api from "../../api/client";
 import toast from "react-hot-toast";
 import { isAdmin, isImpersonating } from "../../utils/jwt";
 
-const baseLinks = [
+const mainLinks = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transações" },
   { to: "/investments", icon: TrendingUp, label: "Investimentos" },
+];
+
+const toolLinks = [
   { to: "/goals", icon: Target, label: "Metas" },
   { to: "/reports", icon: BarChart3, label: "Relatórios" },
   { to: "/import", icon: Upload, label: "Importar" },
@@ -45,7 +48,8 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
   const [passwordForm, setPasswordForm] = useState({ current: "", new: "", confirm: "" });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
-  const links = isAdmin() && !isImpersonating() ? [...baseLinks, adminLink] : baseLinks;
+
+  const extraLinks = isAdmin() && !isImpersonating() ? [adminLink] : [];
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -53,23 +57,19 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
   };
 
   const handleNavClick = () => {
-    // Close mobile menu when navigating
     if (onClose) onClose();
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (passwordForm.new !== passwordForm.confirm) {
       toast.error("As senhas não coincidem");
       return;
     }
-    
     if (passwordForm.new.length < 6) {
       toast.error("A nova senha deve ter pelo menos 6 caracteres");
       return;
     }
-    
     setSubmitting(true);
     try {
       await api.post("/auth/change-password", {
@@ -86,9 +86,31 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
     }
   };
 
+  const navItemClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
+      collapsed ? "md:px-2 md:justify-center" : ""
+    } ${
+      isActive
+        ? "border-l-2 border-accent text-accent bg-surface-hover pl-[10px]"
+        : "text-muted hover:text-white hover:bg-surface-hover border-l-2 border-transparent pl-[10px]"
+    }`;
+
+  const renderLink = (link: { to: string; icon: React.ElementType; label: string }) => (
+    <NavLink
+      key={link.to}
+      to={link.to}
+      end={link.to === "/"}
+      onClick={handleNavClick}
+      className={navItemClass}
+      title={collapsed ? link.label : ""}
+    >
+      <link.icon className="w-4 h-4 flex-shrink-0" />
+      {!collapsed && link.label}
+    </NavLink>
+  );
+
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
@@ -96,7 +118,6 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           fixed md:static inset-y-0 left-0 z-50
@@ -104,87 +125,74 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
           transform transition-all duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0 md:flex
-          ${collapsed ? "md:w-20" : "md:w-64"}
-          ${!collapsed ? "w-64" : "w-64"}
+          ${collapsed ? "md:w-16" : "md:w-56"}
+          ${!collapsed ? "w-56" : "w-56"}
         `}
       >
         {/* Logo */}
-        <div className={`flex items-center justify-between px-6 py-6 border-b border-border transition-all duration-300 ${collapsed ? "md:px-3 md:justify-center" : ""}`}>
-          <div className={`flex items-center gap-3 ${collapsed ? "md:gap-0" : ""}`}>
-            <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0">
-              <DollarSign className="w-6 h-6 text-white" />
+        <div className={`flex items-center justify-between px-4 py-4 border-b border-border transition-all duration-300 ${collapsed ? "md:px-3 md:justify-center" : ""}`}>
+          <div className={`flex items-center gap-2.5 ${collapsed ? "md:gap-0" : ""}`}>
+            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-4 h-4 text-primary" />
             </div>
             {!collapsed && (
               <div>
-                <h1 className="text-lg font-bold text-white leading-tight">Money</h1>
-                <p className="text-xs text-muted">Management</p>
+                <h1 className="text-sm font-bold text-white leading-tight font-display">Money</h1>
+                <p className="text-xs text-muted leading-tight">Management</p>
               </div>
             )}
           </div>
-          {/* Close button for mobile */}
           <button
             onClick={onClose}
-            className="md:hidden p-2 text-muted hover:text-white hover:bg-surface-hover rounded-lg transition cursor-pointer"
+            className="md:hidden p-1.5 text-muted hover:text-white hover:bg-surface-hover rounded transition cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === "/"}
-              onClick={handleNavClick}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  collapsed ? "md:px-2 md:justify-center" : ""
-                } ${
-                  isActive
-                    ? "bg-accent text-white shadow-lg shadow-accent/20"
-                    : "text-muted hover:text-white hover:bg-surface-hover"
-                }`
-              }
-              title={collapsed ? link.label : ""}
-            >
-              <link.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && link.label}
-            </NavLink>
-          ))}
+        <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+          {[...mainLinks, ...extraLinks].map(renderLink)}
+
+          <div className={`pt-4 pb-1 ${collapsed ? "hidden md:hidden" : ""}`}>
+            <span className="px-3 text-xs font-semibold text-muted/60 uppercase tracking-widest">
+              {!collapsed && "Ferramentas"}
+            </span>
+          </div>
+
+          {toolLinks.map(renderLink)}
         </nav>
 
         {/* Footer actions */}
-        <div className="p-3 border-t border-border space-y-1">
+        <div className="p-2 border-t border-border space-y-0.5">
           <button
             onClick={toggleMoneyVisibility}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer ${
+            className={`flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-150 cursor-pointer ${
               collapsed ? "md:px-2 md:justify-center" : ""
             }`}
             title={showMoney ? "Ocultar valores" : "Mostrar valores"}
           >
-            {showMoney ? <Eye className="w-5 h-5 flex-shrink-0" /> : <EyeOff className="w-5 h-5 flex-shrink-0" />}
+            {showMoney ? <Eye className="w-4 h-4 flex-shrink-0" /> : <EyeOff className="w-4 h-4 flex-shrink-0" />}
             {!collapsed && (showMoney ? "Ocultar Valores" : "Mostrar Valores")}
           </button>
           <button
             onClick={() => setShowPasswordModal(true)}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-200 cursor-pointer ${
+            className={`flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium text-muted hover:text-white hover:bg-surface-hover transition-all duration-150 cursor-pointer ${
               collapsed ? "md:px-2 md:justify-center" : ""
             }`}
             title="Alterar Senha"
           >
-            <KeyRound className="w-5 h-5 flex-shrink-0" />
+            <KeyRound className="w-4 h-4 flex-shrink-0" />
             {!collapsed && "Alterar Senha"}
           </button>
           <button
             onClick={handleLogout}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-muted hover:text-danger hover:bg-surface-hover transition-all duration-200 cursor-pointer ${
+            className={`flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium text-muted hover:text-danger hover:bg-surface-hover transition-all duration-150 cursor-pointer ${
               collapsed ? "md:px-2 md:justify-center" : ""
             }`}
             title="Sair"
           >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
+            <LogOut className="w-4 h-4 flex-shrink-0" />
             {!collapsed && "Sair"}
           </button>
         </div>
@@ -193,94 +201,55 @@ export default function Sidebar({ isOpen, onClose, collapsed = false }: SidebarP
       {/* Password Change Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setShowPasswordModal(false)}>
-          <div className="bg-primary-light rounded-2xl p-6 w-full max-w-md border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-primary-light rounded-lg p-6 w-full max-w-md border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
-                  <KeyRound className="w-5 h-5 text-accent" />
+                <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4 text-accent" />
                 </div>
-                <h3 className="text-lg font-semibold text-white">Alterar Senha</h3>
+                <h3 className="text-base font-semibold text-white font-display">Alterar Senha</h3>
               </div>
               <button onClick={() => setShowPasswordModal(false)} className="text-muted hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="text-xs text-muted mb-1 block">Senha Atual</label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.current ? "text" : "password"}
-                    value={passwordForm.current}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                    placeholder="Digite sua senha atual"
-                    required
-                    className="w-full px-4 py-2.5 pr-10 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white cursor-pointer"
-                  >
-                    {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              {([
+                { key: "current", label: "Senha Atual", placeholder: "Digite sua senha atual" },
+                { key: "new", label: "Nova Senha", placeholder: "Mín. 6 caracteres" },
+                { key: "confirm", label: "Confirmar Nova Senha", placeholder: "Confirme a nova senha" },
+              ] as const).map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label className="text-xs text-muted mb-1 block uppercase tracking-wide">{label}</label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords[key] ? "text" : "password"}
+                      value={passwordForm[key]}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, [key]: e.target.value })}
+                      placeholder={placeholder}
+                      required
+                      minLength={key !== "current" ? 6 : undefined}
+                      className="w-full px-3 py-2.5 pr-10 bg-surface border border-border rounded text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords({ ...showPasswords, [key]: !showPasswords[key] })}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white cursor-pointer"
+                    >
+                      {showPasswords[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted mb-1 block">Nova Senha</label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.new ? "text" : "password"}
-                    value={passwordForm.new}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
-                    placeholder="Digite a nova senha (mín. 6 caracteres)"
-                    required
-                    minLength={6}
-                    className="w-full px-4 py-2.5 pr-10 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white cursor-pointer"
-                  >
-                    {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted mb-1 block">Confirmar Nova Senha</label>
-                <div className="relative">
-                  <input
-                    type={showPasswords.confirm ? "text" : "password"}
-                    value={passwordForm.confirm}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                    placeholder="Confirme a nova senha"
-                    required
-                    className="w-full px-4 py-2.5 pr-10 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white cursor-pointer"
-                  >
-                    {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+              ))}
 
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-accent hover:bg-accent-hover text-primary font-semibold rounded text-sm transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
               >
                 {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Alterando...
-                  </>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Alterando...</>
                 ) : (
                   "Alterar Senha"
                 )}

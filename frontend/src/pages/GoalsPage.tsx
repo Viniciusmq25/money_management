@@ -81,12 +81,12 @@ export default function GoalsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Metas Financeiras</h2>
+        <h2 className="text-xl font-bold text-white font-display">Metas Financeiras</h2>
         <button
           onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer"
+          className="flex items-center gap-2 px-3 py-2 bg-accent hover:bg-accent-hover text-primary text-sm font-semibold rounded transition cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Nova Meta
         </button>
@@ -101,10 +101,10 @@ export default function GoalsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {goals.map((goal) => (
-            <div key={goal.id} className="bg-primary-light rounded-2xl p-5 border border-border hover:border-accent/30 transition-all duration-200">
+            <div key={goal.id} className="bg-primary-light rounded-lg p-5 border border-border hover:border-accent/30 transition-all duration-200">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: goal.color + "20" }}>
+                  <div className="w-10 h-10 rounded-md flex items-center justify-center" style={{ backgroundColor: goal.color + "20" }}>
                     <Target className="w-5 h-5" style={{ color: goal.color }} />
                   </div>
                   <div>
@@ -167,7 +167,7 @@ export default function GoalsPage() {
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <form onSubmit={handleSubmit} className="bg-primary-light rounded-2xl p-6 border border-border w-full max-w-md space-y-4 shadow-2xl">
+          <form onSubmit={handleSubmit} className="bg-primary-light rounded-lg p-6 border border-border w-full max-w-md space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">{editId ? "Editar" : "Nova"} Meta</h3>
               <button type="button" onClick={resetForm} className="text-muted hover:text-white cursor-pointer">
@@ -175,13 +175,13 @@ export default function GoalsPage() {
               </button>
             </div>
 
-            <input type="text" placeholder="Nome da meta" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-            <input type="number" step="0.01" placeholder="Valor da meta (R$)" value={form.target_amount} onChange={(e) => setForm({ ...form, target_amount: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
-            <input type="number" step="0.01" placeholder="Valor atual (R$)" value={form.current_amount} onChange={(e) => setForm({ ...form, current_amount: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+            <input type="text" placeholder="Nome da meta" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-md text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+            <input type="number" step="0.01" placeholder="Valor da meta (R$)" value={form.target_amount} onChange={(e) => setForm({ ...form, target_amount: e.target.value })} required className="w-full px-4 py-2.5 bg-surface border border-border rounded-md text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
+            <input type="number" step="0.01" placeholder="Valor atual (R$)" value={form.current_amount} onChange={(e) => setForm({ ...form, current_amount: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-md text-white text-sm placeholder-muted/50 focus:outline-none focus:ring-2 focus:ring-accent" />
 
             <div>
               <label className="text-xs text-muted mb-1 block">Prazo (opcional)</label>
-              <input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+              <input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="w-full px-4 py-2.5 bg-surface border border-border rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
 
             <div>
@@ -199,7 +199,7 @@ export default function GoalsPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={submitting} className="w-full py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <button type="submit" disabled={submitting} className="w-full py-3 bg-accent hover:bg-accent-hover text-primary font-semibold rounded transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />

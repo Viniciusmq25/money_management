@@ -67,12 +67,12 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Importar Extrato</h2>
+      <h2 className="text-xl font-bold text-white font-display">Importar Extrato</h2>
 
       {/* Dropzone */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 cursor-pointer ${
+        className={`border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer ${
           isDragActive ? "border-accent bg-accent/10" : "border-border hover:border-accent/50 bg-primary-light"
         }`}
       >
@@ -102,7 +102,7 @@ export default function ImportPage() {
       {preview && !done && (
         <div className="space-y-4">
           {/* Summary */}
-          <div className="bg-primary-light rounded-2xl p-5 border border-border">
+          <div className="bg-primary-light rounded-lg p-5 border border-border">
             <div className="flex items-center gap-3 mb-4">
               <FileSpreadsheet className="w-5 h-5 text-accent" />
               <div>
@@ -117,19 +117,19 @@ export default function ImportPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-surface rounded-xl p-3 text-center">
+              <div className="bg-surface rounded p-3 text-center">
                 <p className="text-xs text-muted">Total Transações</p>
                 <p className="text-lg font-bold text-white">{preview.transactions.length}</p>
               </div>
-              <div className="bg-surface rounded-xl p-3 text-center">
+              <div className="bg-surface rounded p-3 text-center">
                 <p className="text-xs text-muted">Receitas</p>
                 <p className="text-lg font-bold text-success">{formatCurrency(preview.total_income, showMoney)}</p>
               </div>
-              <div className="bg-surface rounded-xl p-3 text-center">
+              <div className="bg-surface rounded p-3 text-center">
                 <p className="text-xs text-muted">Despesas</p>
                 <p className="text-lg font-bold text-danger">{formatCurrency(preview.total_expense, showMoney)}</p>
               </div>
-              <div className="bg-surface rounded-xl p-3 text-center">
+              <div className="bg-surface rounded p-3 text-center">
                 <p className="text-xs text-muted">Duplicatas</p>
                 <p className={`text-lg font-bold ${preview.duplicates_count > 0 ? "text-warning" : "text-success"}`}>
                   {preview.duplicates_count}
@@ -139,7 +139,7 @@ export default function ImportPage() {
           </div>
 
           {/* Transaction list */}
-          <div className="bg-primary-light rounded-2xl border border-border overflow-hidden">
+          <div className="bg-primary-light rounded-lg border border-border overflow-hidden">
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="w-full">
                 <thead className="sticky top-0 bg-primary-light">
@@ -194,14 +194,14 @@ export default function ImportPage() {
           <div className="flex justify-end gap-3">
             <button
               onClick={() => { setPreview(null); setDone(false); }}
-              className="px-5 py-2.5 bg-surface hover:bg-surface-hover text-white text-sm font-medium rounded-xl transition cursor-pointer"
+              className="px-5 py-2.5 bg-surface hover:bg-surface-hover text-white text-sm font-medium rounded transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleConfirm}
               disabled={importing || preview.transactions.filter((t) => !t.is_duplicate).length === 0}
-              className="px-5 py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition cursor-pointer flex items-center gap-2"
+              className="px-5 py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-primary text-sm font-semibold rounded transition cursor-pointer flex items-center gap-2"
             >
               {importing ? (
                 <>
@@ -226,7 +226,7 @@ export default function ImportPage() {
           <p className="text-muted text-sm">Suas transações foram adicionadas com sucesso.</p>
           <button
             onClick={() => { setPreview(null); setDone(false); }}
-            className="mt-4 px-5 py-2.5 bg-accent hover:bg-accent-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer"
+            className="mt-4 px-5 py-2.5 bg-accent hover:bg-accent-hover text-primary text-sm font-semibold rounded transition cursor-pointer"
           >
             Importar outro arquivo
           </button>

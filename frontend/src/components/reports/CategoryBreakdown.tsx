@@ -26,10 +26,10 @@ export default function CategoryBreakdown({
   showMoney,
 }: CategoryBreakdownProps) {
   return (
-    <div className="lg:col-span-2 bg-primary-light rounded-2xl p-5 border border-border">
+    <div className="lg:col-span-2 bg-primary-light rounded-lg p-4 border border-border">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold text-white">
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest">
             Distribuição
           </h3>
           {selectedPeriodName && (
@@ -91,7 +91,7 @@ export default function CategoryBreakdown({
                           y={cy + 16}
                           textAnchor="middle"
                           dominantBaseline="central"
-                          fill="#94A3B8"
+                          fill="#8A93A6"
                           fontSize={11}
                           fontWeight={500}
                           letterSpacing={1}
@@ -105,14 +105,14 @@ export default function CategoryBreakdown({
               </Pie>
               <Tooltip
                 contentStyle={{
-                  background: "#1E2139",
-                  border: "1px solid #3B3F5C",
-                  borderRadius: 12,
-                  padding: "10px 14px",
+                  background: "#0B0E13",
+                  border: "1px solid #1C2330",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  fontSize: 12,
                 }}
                 itemStyle={{
-                  color: "#FFFFFF",
-                  fontSize: 13,
+                  color: "#F5F7FA",
                   fontWeight: 500,
                 }}
                 formatter={(v: number, _name: string, entry: any) => [

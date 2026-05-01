@@ -159,15 +159,15 @@ export default function InvestmentsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-40 bg-surface animate-pulse rounded" />
-          <div className="h-9 w-32 bg-surface animate-pulse rounded-xl" />
+          <div className="h-7 w-40 bg-surface animate-pulse rounded" />
+          <div className="h-8 w-32 bg-surface animate-pulse rounded" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
           <SkeletonChart />
           <SkeletonTable rows={6} className="lg:col-span-3" />
         </div>
@@ -203,26 +203,26 @@ export default function InvestmentsPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-white">Investimentos</h2>
+        <h2 className="text-xl font-bold text-white font-display">Investimentos</h2>
         <div className="flex items-center gap-2">
           {binanceStatus?.configured ? (
             <>
               <button
                 onClick={() => binanceSync.mutate()}
                 disabled={binanceSync.isPending}
-                className="flex items-center gap-2 px-3 py-2 bg-warning/20 hover:bg-warning/30 text-warning text-sm font-medium rounded-xl transition cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-2 px-3 py-1.5 bg-warning/20 hover:bg-warning/30 text-warning text-xs font-medium rounded transition cursor-pointer disabled:opacity-50"
                 title="Sincronizar com Binance"
               >
                 <RefreshCw
-                  className={`w-4 h-4 ${binanceSync.isPending ? "animate-spin" : ""}`}
+                  className={`w-3.5 h-3.5 ${binanceSync.isPending ? "animate-spin" : ""}`}
                 />
                 {binanceSync.isPending ? "Sincronizando..." : "Sync Binance"}
               </button>
               <button
                 onClick={handleBinanceDisconnect}
-                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition cursor-pointer"
+                className="p-1.5 text-muted hover:text-danger hover:bg-danger/10 rounded transition cursor-pointer"
                 title="Desconectar Binance"
               >
                 <Link2Off className="w-4 h-4" />
@@ -231,7 +231,7 @@ export default function InvestmentsPage() {
           ) : (
             <button
               onClick={() => setShowBinanceConfig(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-warning/20 hover:bg-warning/30 text-warning text-sm font-medium rounded-xl transition cursor-pointer"
+              className="flex items-center gap-2 px-3 py-1.5 bg-warning/20 hover:bg-warning/30 text-warning text-xs font-medium rounded transition cursor-pointer"
             >
               <Link2 className="w-4 h-4" /> Conectar Binance
             </button>
@@ -240,10 +240,10 @@ export default function InvestmentsPage() {
       </div>
 
       {summary && (
-        <InvestmentSummaryCards summary={summary} showMoney={showMoney} />
+        <InvestmentSummaryCards summary={summary} showMoney={showMoney} tab={tab} />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <AllocationChart pieData={pieData} showMoney={showMoney} />
         <InvestmentTable
           positions={positions}

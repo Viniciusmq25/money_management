@@ -15,33 +15,33 @@ interface Props {
 
 export default function AllocationChart({ pieData, showMoney }: Props) {
   return (
-    <div className="bg-primary-light rounded-2xl p-5 border border-border">
-      <h3 className="text-sm font-semibold text-muted mb-3">Alocação</h3>
+    <div className="bg-primary-light rounded-lg p-4 border border-border">
+      <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Alocação</h3>
       {pieData.length > 0 ? (
         <>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={180}>
             <PieChart>
               <Pie
                 data={pieData}
                 cx="50%"
                 cy="50%"
-                innerRadius={55}
-                outerRadius={80}
+                innerRadius={48}
+                outerRadius={70}
                 paddingAngle={2}
                 dataKey="value"
                 strokeWidth={0}
                 label={({ cx, cy, midAngle, outerRadius, payload }) => {
                   if (payload.percent < 5) return null;
                   const RADIAN = Math.PI / 180;
-                  const radius = outerRadius + 16;
+                  const radius = outerRadius + 14;
                   const x = cx + radius * Math.cos(-midAngle * RADIAN);
                   const y = cy + radius * Math.sin(-midAngle * RADIAN);
                   return (
                     <text
                       x={x}
                       y={y}
-                      fill="#CBD5E1"
-                      fontSize={11}
+                      fill="#8A93A6"
+                      fontSize={10}
                       fontWeight={600}
                       textAnchor="middle"
                       dominantBaseline="central"
@@ -53,32 +53,19 @@ export default function AllocationChart({ pieData, showMoney }: Props) {
                 labelLine={false}
               >
                 {pieData.map((e, i) => (
-                  <Cell
-                    key={i}
-                    fill={e.color}
-                    style={{
-                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
-                    }}
-                  />
+                  <Cell key={i} fill={e.color} />
                 ))}
               </Pie>
               <Tooltip
                 contentStyle={{
-                  background: "#1E2139",
-                  border: "1px solid #3B3F5C",
-                  borderRadius: 12,
-                  padding: "10px 14px",
-                }}
-                itemStyle={{
-                  color: "#FFFFFF",
-                  fontSize: 13,
-                  fontWeight: 500,
-                }}
-                labelStyle={{
-                  color: "#94A3B8",
+                  background: "#0B0E13",
+                  border: "1px solid #1C2330",
+                  borderRadius: 6,
+                  padding: "8px 12px",
                   fontSize: 12,
-                  marginBottom: 4,
                 }}
+                itemStyle={{ color: "#F5F7FA", fontWeight: 500 }}
+                labelStyle={{ color: "#8A93A6", marginBottom: 2 }}
                 formatter={(v: number, _name: string, entry: any) => [
                   `${formatCurrency(v, showMoney)} (${entry.payload.percent.toFixed(1)}%)`,
                   entry.payload.name,
@@ -87,35 +74,23 @@ export default function AllocationChart({ pieData, showMoney }: Props) {
               />
             </PieChart>
           </ResponsiveContainer>
-          <div className="space-y-2 mt-3">
+          <div className="space-y-1.5 mt-2">
             {pieData.map((e, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between text-sm"
-              >
+              <div key={i} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: e.color }}
-                  />
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
                   <span className="text-muted">{e.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-muted text-xs">
-                    {e.percent.toFixed(1)}%
-                  </span>
-                  <span className="text-white font-medium">
-                    {formatCurrency(e.value, showMoney)}
-                  </span>
+                  <span className="text-muted">{e.percent.toFixed(1)}%</span>
+                  <span className="text-white font-medium font-mono">{formatCurrency(e.value, showMoney)}</span>
                 </div>
               </div>
             ))}
           </div>
         </>
       ) : (
-        <p className="text-muted text-sm text-center py-6">
-          Nenhum investimento
-        </p>
+        <p className="text-muted text-sm text-center py-6">Nenhum investimento</p>
       )}
     </div>
   );
