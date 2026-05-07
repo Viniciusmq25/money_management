@@ -44,9 +44,6 @@ export default function MonthlySummaryTable({
                 Despesas
               </th>
               <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
-                Saldo
-              </th>
-              <th className="text-right px-5 py-3 text-xs font-semibold text-muted uppercase tracking-wider">
                 Maior Gasto
               </th>
             </tr>
@@ -68,14 +65,6 @@ export default function MonthlySummaryTable({
                   </td>
                   <td className="px-5 py-3.5 text-sm text-danger text-right">
                     {formatCurrency(row.expense, showMoney)}
-                  </td>
-                  <td
-                    className={`px-5 py-3.5 text-sm font-semibold text-right ${
-                      row.saldo >= 0 ? "text-success" : "text-danger"
-                    }`}
-                  >
-                    {row.saldo >= 0 ? "+" : ""}
-                    {formatCurrency(row.saldo, showMoney)}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {topExpense ? (

@@ -23,6 +23,7 @@ interface CategoryInfo {
 interface IncomeExpenseChartProps {
   stackedBarData: any[];
   categoryInfo: CategoryInfo;
+  investmentTrend?: Record<string, { income_in: number; expense_out: number }>;
   selectedPeriod: string | null;
   onBarClick: (data: any) => void;
   onClearSelection: () => void;
@@ -32,6 +33,7 @@ interface IncomeExpenseChartProps {
 export default function IncomeExpenseChart({
   stackedBarData,
   categoryInfo,
+  investmentTrend,
   selectedPeriod,
   onBarClick,
   onClearSelection,
@@ -63,8 +65,10 @@ export default function IncomeExpenseChart({
 
     const incomeItems = payload.filter((p: any) => p.dataKey.startsWith("inc_") && p.value > 0);
     const expenseItems = payload.filter((p: any) => p.dataKey.startsWith("exp_") && p.value > 0);
+    const inv = investmentTrend?.[hoveredMonth];
+    const hasInv = inv && (inv.income_in > 0 || inv.expense_out > 0);
 
-    if (!incomeItems.length && !expenseItems.length) return null;
+    if (!incomeItems.length && !expenseItems.length && !hasInv) return null;
 
     return (
       <div style={{ background: "#0B0E13", border: "1px solid #1C2330", borderRadius: 6, padding: "10px 14px", color: "#F5F7FA", maxWidth: 300, fontSize: 12 }}>
@@ -95,6 +99,23 @@ export default function IncomeExpenseChart({
                 <span style={{ fontWeight: 500 }}>{formatCurrency(item.value, showMoney)}</span>
               </div>
             ))}
+          </div>
+        )}
+        {hasInv && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #1C2330" }}>
+            <p style={{ fontSize: 10, color: "#8A93A6", fontWeight: 700, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>Investimentos</p>
+            {inv.income_in > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 11, marginBottom: 2 }}>
+                <span style={{ color: "#00E08A" }}>+ Rendimentos</span>
+                <span style={{ fontWeight: 500 }}>{formatCurrency(inv.income_in, showMoney)}</span>
+              </div>
+            )}
+            {inv.expense_out > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 11 }}>
+                <span style={{ color: "#FF4D5E" }}>− Aportes</span>
+                <span style={{ fontWeight: 500 }}>{formatCurrency(inv.expense_out, showMoney)}</span>
+              </div>
+            )}
           </div>
         )}
       </div>

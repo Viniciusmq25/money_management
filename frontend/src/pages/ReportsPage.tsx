@@ -5,7 +5,7 @@ import {
   TrendingUp,
   TrendingDown,
   Download,
-  Wallet,
+  PiggyBank,
   CreditCard,
 } from "lucide-react";
 import DateRangePicker, { type DateRange } from "../components/DateRangePicker";
@@ -190,8 +190,8 @@ export default function ReportsPage() {
 
   function handleDownload() {
     if (!barData.length) return;
-    const headers = ["Mês", "Receitas", "Despesas", "Saldo"];
-    const rows = barData.map((r: any) => [r.fullName, r.income, r.expense, r.saldo]);
+    const headers = ["Mês", "Receitas", "Despesas"];
+    const rows = barData.map((r: any) => [r.fullName, r.income, r.expense]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -334,25 +334,14 @@ export default function ReportsPage() {
 
         <div className="bg-primary-light rounded-2xl p-5 border border-border flex items-start justify-between">
           <div>
-            <p className="text-sm text-muted mb-1">Saldo Líquido</p>
+            <p className="text-sm text-muted mb-1">Valor Investido</p>
             <p className="text-2xl font-bold text-white">
-              {formatCurrency(stats?.totalBalance || 0, showMoney)}
+              {formatCurrency(data.total_invested_net_period || 0, showMoney)}
             </p>
-            {stats && (
-              <div
-                className={`flex items-center gap-1 mt-2 text-xs font-medium ${
-                  stats.balanceChange >= 0 ? "text-success" : "text-danger"
-                }`}
-              >
-                <TrendingUp size={14} />
-                <span>
-                  +{stats.balanceChange.toFixed(1)}% geral
-                </span>
-              </div>
-            )}
+            <p className="text-xs text-muted mt-2">Aportes − resgates no período</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center shrink-0">
-            <Wallet size={20} className="text-accent" />
+            <PiggyBank size={20} className="text-accent" />
           </div>
         </div>
       </div>
@@ -362,6 +351,7 @@ export default function ReportsPage() {
         <IncomeExpenseChart
           stackedBarData={stackedBarData}
           categoryInfo={categoryInfo}
+          investmentTrend={data.investment_trend}
           selectedPeriod={selectedPeriod}
           onBarClick={handleBarClick}
           onClearSelection={handleClearSelection}
