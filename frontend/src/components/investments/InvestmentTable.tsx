@@ -278,7 +278,7 @@ export default function InvestmentTable({
                     </td>
                   )}
                   <td className="px-5 py-3 text-right text-sm text-white">
-                    {inv.quantity.toLocaleString("pt-BR", {
+                    {inv.type === "RENDA_FIXA" ? "—" : inv.quantity.toLocaleString("pt-BR", {
                       maximumFractionDigits: 8,
                     })}
                   </td>
