@@ -283,7 +283,7 @@ export default function InvestmentTable({
                     })}
                   </td>
                   <td className="px-5 py-3 text-right text-sm text-white">
-                    {formatCurrency(inv.avg_price, showMoney)}
+                    {inv.type === "RENDA_FIXA" ? "—" : formatCurrency(inv.avg_price, showMoney)}
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div>
