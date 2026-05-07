@@ -148,14 +148,19 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
         logger.error(f"Enrichment error for {inv.id} ({inv.ticker}): {e}", exc_info=True)
 
     if data["current_value"] is not None:
-        unrealized = data["current_value"] - (qty * avg)
-        data["unrealized_profit_loss"] = unrealized
-        total_pl = (realized if inv.type in STOCK_TYPES else 0) + unrealized
-        data["profit_loss"] = total_pl
-        if cost_basis > 0:
-            data["profit_loss_pct"] = (total_pl / cost_basis) * 100
-        elif data["total_invested"] and data["total_invested"] > 0:
-            data["profit_loss_pct"] = (total_pl / data["total_invested"]) * 100
+        if inv.type in STOCK_TYPES:
+            unrealized = data["current_value"] - (qty * avg)
+            data["unrealized_profit_loss"] = unrealized
+            total_pl = realized + unrealized
+            data["profit_loss"] = total_pl
+            if cost_basis > 0:
+                data["profit_loss_pct"] = (total_pl / cost_basis) * 100
+        else:
+            # RENDA_FIXA / CRYPTO: use total_invested as cost basis
+            if data["total_invested"]:
+                data["profit_loss"] = data["current_value"] - data["total_invested"]
+                if data["total_invested"] > 0:
+                    data["profit_loss_pct"] = (data["profit_loss"] / data["total_invested"]) * 100
     elif inv.type in STOCK_TYPES and realized != 0:
         # fully closed position: no market price but has realized gain/loss
         data["unrealized_profit_loss"] = 0.0
