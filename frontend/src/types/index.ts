@@ -5,6 +5,7 @@ export interface Category {
   color: string;
   type: "INCOME" | "EXPENSE";
   budget_limit: number | null;
+  exclude_from_reports: boolean;
 }
 
 export interface Transaction {
@@ -113,6 +114,10 @@ export interface DashboardData {
   investment_change_pct: number;
   monthly_trend: { month: string; income: number; expense: number }[];
   expense_by_category: { name: string; color: string; icon: string; value: number }[];
+  investment_trend: Record<string, { income_in: number; expense_out: number }>;
+  cumulative_balance_trend: { month: string; balance: number }[];
+  last_30d_expense_by_category: { name: string; color: string; icon: string; value: number }[];
+  total_invested_net_period: number;
   recent_transactions: Transaction[];
   market_data: {
     crypto?: Record<string, { price: number; change_24h: number }>;

@@ -46,7 +46,7 @@ export default function DashboardPage() {
 
   if (!data) return <p className="text-muted">Erro ao carregar dados.</p>;
 
-  const trendData = data.monthly_trend.map((m) => ({
+  const balanceData = data.cumulative_balance_trend.map((m) => ({
     ...m,
     name: formatMonth(m.month),
   }));
@@ -91,19 +91,15 @@ export default function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Area chart */}
+        {/* Area chart — cumulative balance */}
         <div className="lg:col-span-2 bg-primary-light rounded-lg p-4 border border-border">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">Receitas vs Despesas</h3>
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">Saldo Acumulado</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={trendData}>
+            <AreaChart data={balanceData}>
               <defs>
-                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#00E08A" stopOpacity={0.25} />
                   <stop offset="100%" stopColor="#00E08A" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#FF4D5E" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#FF4D5E" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#1C2330" />
@@ -113,18 +109,17 @@ export default function DashboardPage() {
                 contentStyle={{ background: "#0B0E13", border: "1px solid #1C2330", borderRadius: 6, color: "#F5F7FA", fontSize: 12 }}
                 formatter={(value: number) => formatCurrency(value, showMoney)}
               />
-              <Area type="monotone" dataKey="income" name="Receitas" stroke="#00E08A" fill="url(#incomeGrad)" strokeWidth={1.5} />
-              <Area type="monotone" dataKey="expense" name="Despesas" stroke="#FF4D5E" fill="url(#expenseGrad)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="balance" name="Saldo" stroke="#00E08A" fill="url(#balanceGrad)" strokeWidth={1.5} dot={{ fill: "#00E08A", r: 3, strokeWidth: 0 }} activeDot={{ r: 5, fill: "#00E08A", stroke: "#07090C", strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Pie chart */}
+        {/* Pie chart — last 30 days */}
         <div className="bg-primary-light rounded-lg p-4 border border-border">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">Gastos por Categoria</h3>
-          {data.expense_by_category.length > 0 ? (() => {
-            const pieTotal = data.expense_by_category.reduce((acc, e) => acc + e.value, 0);
-            const pieData = data.expense_by_category.map((e) => ({
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">Gastos · 30 dias</h3>
+          {data.last_30d_expense_by_category.length > 0 ? (() => {
+            const pieTotal = data.last_30d_expense_by_category.reduce((acc, e) => acc + e.value, 0);
+            const pieData = data.last_30d_expense_by_category.map((e) => ({
               ...e,
               percent: pieTotal > 0 ? (e.value / pieTotal) * 100 : 0,
             }));
@@ -188,7 +183,7 @@ export default function DashboardPage() {
               </>
             );
           })() : (
-            <p className="text-muted text-sm text-center py-8">Nenhuma despesa neste mês</p>
+            <p className="text-muted text-sm text-center py-8">Nenhuma despesa nos últimos 30 dias</p>
           )}
         </div>
       </div>
