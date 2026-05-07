@@ -251,6 +251,8 @@ class InvestmentResponse(BaseModel):
     current_value: Optional[float] = None
     profit_loss: Optional[float] = None
     profit_loss_pct: Optional[float] = None
+    realized_profit_loss: Optional[float] = None
+    unrealized_profit_loss: Optional[float] = None
 
     class Config:
         from_attributes = True

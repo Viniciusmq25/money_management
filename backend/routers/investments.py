@@ -83,17 +83,26 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
     redemptions = inv.redemptions or []
     stock_txs = inv.stock_transactions if hasattr(inv, 'stock_transactions') else []
 
+    realized = 0.0
+    cost_basis = 0.0
     if inv.type in STOCK_TYPES and stock_txs:
-        buys = [t for t in stock_txs if t.type == "COMPRA"]
-        sells = [t for t in stock_txs if t.type == "VENDA"]
-        qty = max(sum(t.quantity for t in buys) - sum(t.quantity for t in sells), 0)
-        buy_qty = sum(t.quantity for t in buys)
-        avg = sum(t.quantity * t.price_per_share for t in buys) / buy_qty if buy_qty > 0 else 0
+        sorted_txs = sorted(stock_txs, key=lambda t: t.date)
+        qty, avg = 0.0, 0.0
+        for t in sorted_txs:
+            if t.type == "COMPRA":
+                total_cost = qty * avg + t.quantity * t.price_per_share
+                qty += t.quantity
+                avg = total_cost / qty
+            else:  # VENDA
+                realized += t.quantity * (t.price_per_share - avg)
+                qty = max(qty - t.quantity, 0)
+        cost_basis = sum(t.quantity * t.price_per_share for t in stock_txs if t.type == "COMPRA")
     else:
         qty = inv.quantity or 0
         avg = inv.avg_price or 0
+        cost_basis = qty * avg
 
-    # For market assets: total_invested = qty * avg_price
+    # For market assets: total_invested = qty * avg_price (open position only)
     # For RENDA_FIXA: total_invested = sum(deposits) - sum(redemptions)
     if inv.type == InvestmentType.RENDA_FIXA:
         total_invested = sum(d.amount for d in deposits) - sum(r.amount for r in redemptions)
@@ -120,6 +129,8 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
         "current_value": None,
         "profit_loss": None,
         "profit_loss_pct": None,
+        "realized_profit_loss": realized if inv.type in STOCK_TYPES else None,
+        "unrealized_profit_loss": None,
     }
 
     try:
@@ -136,10 +147,20 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
     except Exception as e:
         logger.error(f"Enrichment error for {inv.id} ({inv.ticker}): {e}", exc_info=True)
 
-    if data["current_value"] is not None and data["total_invested"]:
-        data["profit_loss"] = data["current_value"] - data["total_invested"]
-        if data["total_invested"] > 0:
-            data["profit_loss_pct"] = (data["profit_loss"] / data["total_invested"]) * 100
+    if data["current_value"] is not None:
+        unrealized = data["current_value"] - (qty * avg)
+        data["unrealized_profit_loss"] = unrealized
+        total_pl = (realized if inv.type in STOCK_TYPES else 0) + unrealized
+        data["profit_loss"] = total_pl
+        if cost_basis > 0:
+            data["profit_loss_pct"] = (total_pl / cost_basis) * 100
+        elif data["total_invested"] and data["total_invested"] > 0:
+            data["profit_loss_pct"] = (total_pl / data["total_invested"]) * 100
+    elif inv.type in STOCK_TYPES and realized != 0:
+        # fully closed position: no market price but has realized gain/loss
+        data["unrealized_profit_loss"] = 0.0
+        data["profit_loss"] = realized
+        data["profit_loss_pct"] = (realized / cost_basis * 100) if cost_basis > 0 else None
 
     return data
 
@@ -297,11 +318,12 @@ async def investment_summary(
         total_invested += e["total_invested"] or 0
         total_current += e["current_value"] or e["total_invested"] or 0
 
+    total_pl = sum(e["profit_loss"] for e in enriched if e["profit_loss"] is not None)
     return {
         "total_invested": total_invested,
         "total_current_value": total_current,
-        "profit_loss": total_current - total_invested,
-        "profit_loss_pct": ((total_current - total_invested) / total_invested * 100) if total_invested > 0 else 0,
+        "profit_loss": total_pl,
+        "profit_loss_pct": (total_pl / total_invested * 100) if total_invested > 0 else 0,
         "by_type": by_type,
         "positions": enriched,
     }

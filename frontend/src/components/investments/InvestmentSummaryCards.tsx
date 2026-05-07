@@ -24,7 +24,7 @@ export default function InvestmentSummaryCards({ summary, showMoney, tab }: Prop
     const filtered = summary.positions.filter((p) => p.type === tab);
     totalInvested = filtered.reduce((s, p) => s + (p.total_invested ?? 0), 0);
     totalCurrent = filtered.reduce((s, p) => s + (p.current_value ?? 0), 0);
-    profitLoss = totalCurrent - totalInvested;
+    profitLoss = filtered.reduce((s, p) => s + (p.profit_loss ?? 0), 0);
     profitLossPct = totalInvested > 0 ? (profitLoss / totalInvested) * 100 : 0;
   }
 

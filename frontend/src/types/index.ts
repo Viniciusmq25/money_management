@@ -66,6 +66,8 @@ export interface Investment {
   current_value: number | null;
   profit_loss: number | null;
   profit_loss_pct: number | null;
+  realized_profit_loss: number | null;
+  unrealized_profit_loss: number | null;
 }
 
 export interface Goal {

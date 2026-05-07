@@ -64,6 +64,7 @@ export default function InvestmentTable({
 }: Props) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("current_value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [showClosed, setShowClosed] = useState(false);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -137,6 +138,14 @@ export default function InvestmentTable({
     });
   }, [positions, sortColumn, sortDirection]);
 
+  const STOCK_TYPES = ["FII", "ACAO_BR", "ACAO_GLOBAL"];
+  const closedCount = sortedPositions.filter(
+    (inv) => inv.quantity === 0 && STOCK_TYPES.includes(inv.type)
+  ).length;
+  const visiblePositions = showClosed
+    ? sortedPositions
+    : sortedPositions.filter((inv) => inv.quantity > 0 || !STOCK_TYPES.includes(inv.type));
+
   const thClass =
     "text-left px-5 py-3 text-xs font-semibold text-muted uppercase cursor-pointer hover:text-white transition select-none";
   const thClassRight =
@@ -163,6 +172,17 @@ export default function InvestmentTable({
         ))}
       </div>
 
+      {closedCount > 0 && (
+        <div className="px-5 py-2 border-b border-border flex items-center justify-between">
+          <span className="text-xs text-muted">{closedCount} posição(ões) encerrada(s)</span>
+          <button
+            onClick={() => setShowClosed(!showClosed)}
+            className="text-xs text-accent hover:underline cursor-pointer"
+          >
+            {showClosed ? "Ocultar encerradas" : "Mostrar encerradas"}
+          </button>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -213,7 +233,7 @@ export default function InvestmentTable({
             </tr>
           </thead>
           <tbody>
-            {sortedPositions.length === 0 ? (
+            {visiblePositions.length === 0 ? (
               <tr>
                 <td colSpan={tab === "ALL" ? 9 : 8} className="text-center py-12">
                   <p className="text-muted">
@@ -224,16 +244,23 @@ export default function InvestmentTable({
                 </td>
               </tr>
             ) : (
-              sortedPositions.map((inv) => (
+              visiblePositions.map((inv) => (
                 <tr
                   key={inv.id}
                   className="border-b border-border last:border-0 hover:bg-surface-hover transition"
                 >
                   <td className="px-5 py-3">
                     <div>
-                      <p className="text-sm font-semibold text-white">
-                        {inv.ticker}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold text-white">
+                          {inv.ticker}
+                        </p>
+                        {inv.quantity === 0 && STOCK_TYPES.includes(inv.type) && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted/20 text-muted">
+                            FECHADO
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted">{inv.name}</p>
                     </div>
                   </td>
@@ -286,7 +313,14 @@ export default function InvestmentTable({
                   <td className="px-5 py-3 text-right">
                     {inv.profit_loss !== null &&
                     inv.profit_loss !== undefined ? (
-                      <div className="flex items-center justify-end gap-1">
+                      <div
+                        className="flex items-center justify-end gap-1"
+                        title={
+                          inv.realized_profit_loss != null && inv.unrealized_profit_loss != null
+                            ? `Realizado: ${formatCurrency(inv.realized_profit_loss, true)} / Não realizado: ${formatCurrency(inv.unrealized_profit_loss, true)}`
+                            : undefined
+                        }
+                      >
                         {inv.profit_loss >= 0 ? (
                           <TrendingUp className="w-3.5 h-3.5 text-success" />
                         ) : (
