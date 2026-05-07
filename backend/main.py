@@ -36,6 +36,27 @@ def migrate_investment_enum(db_engine):
         logging.getLogger(__name__).warning(f"Enum migration skipped: {e}")
 
 
+def migrate_add_exclude_from_reports(db_engine):
+    """Add categories.exclude_from_reports BOOL NOT NULL DEFAULT false."""
+    import logging
+    log = logging.getLogger(__name__)
+    try:
+        with db_engine.connect() as conn:
+            exists = conn.execute(text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name='categories' AND column_name='exclude_from_reports'"
+            )).fetchone()
+            if exists:
+                return
+            conn.execute(text(
+                "ALTER TABLE categories ADD COLUMN exclude_from_reports "
+                "BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            conn.commit()
+    except Exception as e:
+        log.warning(f"exclude_from_reports migration skipped: {e}")
+
+
 def migrate_stock_data(db_engine):
     """Wipe quantity/avg_price for stock-type investments — movimentações are now source of truth."""
     try:
@@ -153,6 +174,8 @@ async def lifespan(app: FastAPI):
     migrate_investment_enum(engine)
     # Create tables
     Base.metadata.create_all(bind=engine)
+    # Add categories.exclude_from_reports if missing (idempotent)
+    migrate_add_exclude_from_reports(engine)
     # Wipe quantity/avg_price for stock types (movimentações are source of truth)
     migrate_stock_data(engine)
     # Bootstrap admin user from legacy password_hash

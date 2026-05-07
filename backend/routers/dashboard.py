@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, extract, desc, case
+from sqlalchemy import func, extract, desc, case, or_
 from datetime import date, timedelta, datetime, timezone
 from database import get_db
 from auth import get_current_user
@@ -37,6 +37,23 @@ async def dashboard_summary(
         range_start = (today - timedelta(days=30 * months)).replace(day=1)
         range_end = today
 
+    # Categories flagged to be excluded from regular income/expense reports
+    # (e.g., "Investimentos" — money moves in/out but isn't real spending/earning)
+    flagged_ids = [
+        cid for (cid,) in db.query(Category.id).filter(
+            Category.user_id == uid,
+            Category.exclude_from_reports == True,
+        ).all()
+    ]
+
+    def not_flagged_clause():
+        if not flagged_ids:
+            return None
+        return or_(
+            Transaction.category_id.is_(None),
+            Transaction.category_id.notin_(flagged_ids),
+        )
+
     current_balance = db.query(
         func.coalesce(
             func.sum(
@@ -52,23 +69,29 @@ async def dashboard_summary(
         Transaction.date <= today,
     ).scalar()
 
-    income = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+    income_q = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
         Transaction.user_id == uid,
         Transaction.type == TransactionType.INCOME,
         Transaction.date >= range_start,
         Transaction.date <= range_end,
-    ).scalar()
+    )
+    if (clause := not_flagged_clause()) is not None:
+        income_q = income_q.filter(clause)
+    income = income_q.scalar()
 
-    expense = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+    expense_q = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
         Transaction.user_id == uid,
         Transaction.type == TransactionType.EXPENSE,
         Transaction.date >= range_start,
         Transaction.date <= range_end,
-    ).scalar()
+    )
+    if (clause := not_flagged_clause()) is not None:
+        expense_q = expense_q.filter(clause)
+    expense = expense_q.scalar()
 
     trend = {}
     if granularity == "day":
-        daily_data = db.query(
+        daily_q = db.query(
             Transaction.date.label("day"),
             Transaction.type,
             func.sum(Transaction.amount).label("total"),
@@ -76,7 +99,10 @@ async def dashboard_summary(
             Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
-        ).group_by(
+        )
+        if (clause := not_flagged_clause()) is not None:
+            daily_q = daily_q.filter(clause)
+        daily_data = daily_q.group_by(
             Transaction.date,
             Transaction.type,
         ).all()
@@ -90,7 +116,7 @@ async def dashboard_summary(
             else:
                 trend[key]["expense"] = float(row.total)
     else:
-        monthly_data = db.query(
+        monthly_q = db.query(
             extract("year", Transaction.date).label("year"),
             extract("month", Transaction.date).label("month"),
             Transaction.type,
@@ -99,7 +125,10 @@ async def dashboard_summary(
             Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
-        ).group_by(
+        )
+        if (clause := not_flagged_clause()) is not None:
+            monthly_q = monthly_q.filter(clause)
+        monthly_data = monthly_q.group_by(
             extract("year", Transaction.date),
             extract("month", Transaction.date),
             Transaction.type,
@@ -126,6 +155,7 @@ async def dashboard_summary(
         Transaction.type == TransactionType.EXPENSE,
         Transaction.date >= range_start,
         Transaction.date <= range_end,
+        Category.exclude_from_reports == False,
     ).group_by(Category.name, Category.color, Category.icon).order_by(desc("total")).all()
 
     expense_by_category = [
@@ -145,6 +175,7 @@ async def dashboard_summary(
             Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
+            Category.exclude_from_reports == False,
         ).group_by(
             Transaction.date,
             Transaction.type,
@@ -174,6 +205,7 @@ async def dashboard_summary(
             Transaction.user_id == uid,
             Transaction.date >= range_start,
             Transaction.date <= range_end,
+            Category.exclude_from_reports == False,
         ).group_by(
             extract("year", Transaction.date),
             extract("month", Transaction.date),
@@ -228,6 +260,146 @@ async def dashboard_summary(
 
     inv_change_pct = ((total_current - total_invested) / total_invested * 100) if total_invested > 0 else 0
 
+    # === investment_trend: aggregate of flagged-category transactions per period ===
+    investment_trend: dict[str, dict] = {}
+    if flagged_ids:
+        if granularity == "day":
+            inv_data = db.query(
+                Transaction.date.label("day"),
+                Transaction.type,
+                func.sum(Transaction.amount).label("total"),
+            ).filter(
+                Transaction.user_id == uid,
+                Transaction.date >= range_start,
+                Transaction.date <= range_end,
+                Transaction.category_id.in_(flagged_ids),
+            ).group_by(Transaction.date, Transaction.type).all()
+            for row in inv_data:
+                key = row.day.isoformat()
+                if key not in investment_trend:
+                    investment_trend[key] = {"income_in": 0.0, "expense_out": 0.0}
+                bucket = "income_in" if row.type == TransactionType.INCOME else "expense_out"
+                investment_trend[key][bucket] = float(row.total)
+        else:
+            inv_data = db.query(
+                extract("year", Transaction.date).label("year"),
+                extract("month", Transaction.date).label("month"),
+                Transaction.type,
+                func.sum(Transaction.amount).label("total"),
+            ).filter(
+                Transaction.user_id == uid,
+                Transaction.date >= range_start,
+                Transaction.date <= range_end,
+                Transaction.category_id.in_(flagged_ids),
+            ).group_by(
+                extract("year", Transaction.date),
+                extract("month", Transaction.date),
+                Transaction.type,
+            ).all()
+            for row in inv_data:
+                key = f"{int(row.year)}-{int(row.month):02d}"
+                if key not in investment_trend:
+                    investment_trend[key] = {"income_in": 0.0, "expense_out": 0.0}
+                bucket = "income_in" if row.type == TransactionType.INCOME else "expense_out"
+                investment_trend[key][bucket] = float(row.total)
+
+    # === cumulative_balance_trend: running balance per period using ALL transactions ===
+    opening_balance = db.query(
+        func.coalesce(
+            func.sum(
+                case(
+                    (Transaction.type == TransactionType.INCOME, Transaction.amount),
+                    else_=-Transaction.amount,
+                )
+            ),
+            0,
+        )
+    ).filter(
+        Transaction.user_id == uid,
+        Transaction.date < range_start,
+    ).scalar()
+
+    if granularity == "day":
+        all_data = db.query(
+            Transaction.date.label("day"),
+            Transaction.type,
+            func.sum(Transaction.amount).label("total"),
+        ).filter(
+            Transaction.user_id == uid,
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+        ).group_by(Transaction.date, Transaction.type).all()
+        all_periods: dict[str, float] = {}
+        for row in all_data:
+            key = row.day.isoformat()
+            delta = float(row.total) if row.type == TransactionType.INCOME else -float(row.total)
+            all_periods[key] = all_periods.get(key, 0.0) + delta
+    else:
+        all_data = db.query(
+            extract("year", Transaction.date).label("year"),
+            extract("month", Transaction.date).label("month"),
+            Transaction.type,
+            func.sum(Transaction.amount).label("total"),
+        ).filter(
+            Transaction.user_id == uid,
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+        ).group_by(
+            extract("year", Transaction.date),
+            extract("month", Transaction.date),
+            Transaction.type,
+        ).all()
+        all_periods = {}
+        for row in all_data:
+            key = f"{int(row.year)}-{int(row.month):02d}"
+            delta = float(row.total) if row.type == TransactionType.INCOME else -float(row.total)
+            all_periods[key] = all_periods.get(key, 0.0) + delta
+
+    cumulative_balance_trend = []
+    running = float(opening_balance)
+    for key in sorted(all_periods.keys()):
+        running += all_periods[key]
+        cumulative_balance_trend.append({"month": key, "balance": running})
+
+    # === last_30d_expense_by_category: dashboard pie (excludes flagged) ===
+    last_30d_start = today - timedelta(days=30)
+    last_30d_data = db.query(
+        Category.name,
+        Category.color,
+        Category.icon,
+        func.sum(Transaction.amount).label("total"),
+    ).join(Transaction, Transaction.category_id == Category.id).filter(
+        Transaction.user_id == uid,
+        Transaction.type == TransactionType.EXPENSE,
+        Transaction.date >= last_30d_start,
+        Transaction.date <= today,
+        Category.exclude_from_reports == False,
+    ).group_by(Category.name, Category.color, Category.icon).order_by(desc("total")).all()
+
+    last_30d_expense_by_category = [
+        {"name": row.name, "color": row.color, "icon": row.icon, "value": float(row.total)}
+        for row in last_30d_data
+    ]
+
+    # === total_invested_net_period: EXPENSE flagged − INCOME flagged in period ===
+    total_invested_net_period = 0.0
+    if flagged_ids:
+        flagged_expense = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+            Transaction.user_id == uid,
+            Transaction.type == TransactionType.EXPENSE,
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+            Transaction.category_id.in_(flagged_ids),
+        ).scalar()
+        flagged_income = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+            Transaction.user_id == uid,
+            Transaction.type == TransactionType.INCOME,
+            Transaction.date >= range_start,
+            Transaction.date <= range_end,
+            Transaction.category_id.in_(flagged_ids),
+        ).scalar()
+        total_invested_net_period = float(flagged_expense) - float(flagged_income)
+
     return {
         "current_balance": float(current_balance),
         "monthly_result": float(income) - float(expense),
@@ -239,6 +411,10 @@ async def dashboard_summary(
         "monthly_trend": monthly_trend,
         "expense_by_category": expense_by_category,
         "trend_by_category": trend_by_category,
+        "investment_trend": investment_trend,
+        "cumulative_balance_trend": cumulative_balance_trend,
+        "last_30d_expense_by_category": last_30d_expense_by_category,
+        "total_invested_net_period": total_invested_net_period,
         "recent_transactions": recent_list,
         "market_data": market_data,
     }

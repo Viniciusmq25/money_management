@@ -61,6 +61,7 @@ class CategoryCreate(BaseModel):
     color: str = Field(default="#6C63FF", pattern=r'^#[0-9A-Fa-f]{6}$')
     type: CategoryType
     budget_limit: Optional[float] = Field(default=None, ge=0)
+    exclude_from_reports: bool = False
 
     @field_validator('name')
     @classmethod
@@ -75,6 +76,7 @@ class CategoryUpdate(BaseModel):
     icon: Optional[str] = Field(default=None, max_length=50)
     color: Optional[str] = Field(default=None, pattern=r'^#[0-9A-Fa-f]{6}$')
     budget_limit: Optional[float] = Field(default=None, ge=0)
+    exclude_from_reports: Optional[bool] = None
 
     @field_validator('name')
     @classmethod
@@ -91,6 +93,7 @@ class CategoryResponse(BaseModel):
     color: str
     type: CategoryType
     budget_limit: Optional[float]
+    exclude_from_reports: bool = False
 
     class Config:
         from_attributes = True

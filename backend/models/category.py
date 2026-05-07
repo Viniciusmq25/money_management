@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Enum as SAEnum
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
@@ -19,5 +19,6 @@ class Category(Base):
     color = Column(String(7), default="#6C63FF")
     type = Column(SAEnum(CategoryType), nullable=False)
     budget_limit = Column(Float, nullable=True)
+    exclude_from_reports = Column(Boolean, nullable=False, server_default="false", default=False)
 
     transactions = relationship("Transaction", back_populates="category")
