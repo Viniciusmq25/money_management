@@ -115,7 +115,7 @@ export interface DashboardData {
   monthly_trend: { month: string; income: number; expense: number }[];
   expense_by_category: { name: string; color: string; icon: string; value: number }[];
   investment_trend: Record<string, { income_in: number; expense_out: number }>;
-  cumulative_balance_trend: { month: string; balance: number }[];
+  equity_trend: { month: string; equity: number }[];
   last_30d_expense_by_category: { name: string; color: string; icon: string; value: number }[];
   total_invested_net_period: number;
   recent_transactions: Transaction[];

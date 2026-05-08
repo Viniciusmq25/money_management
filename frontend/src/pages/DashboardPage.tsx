@@ -7,8 +7,8 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -46,7 +46,7 @@ export default function DashboardPage() {
 
   if (!data) return <p className="text-muted">Erro ao carregar dados.</p>;
 
-  const balanceData = data.cumulative_balance_trend.map((m) => ({
+  const equityData = data.equity_trend.map((m) => ({
     ...m,
     name: formatMonth(m.month),
   }));
@@ -91,17 +91,11 @@ export default function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Area chart — cumulative balance */}
+        {/* Line chart — total equity (cash + invested at cost) */}
         <div className="lg:col-span-2 bg-primary-light rounded-lg p-4 border border-border">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">Saldo Acumulado</h3>
+          <h3 className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">Patrimônio Total</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={balanceData}>
-              <defs>
-                <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00E08A" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#00E08A" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <LineChart data={equityData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1C2330" />
               <XAxis dataKey="name" tick={{ fill: "#8A93A6", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#8A93A6", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
@@ -109,8 +103,8 @@ export default function DashboardPage() {
                 contentStyle={{ background: "#0B0E13", border: "1px solid #1C2330", borderRadius: 6, color: "#F5F7FA", fontSize: 12 }}
                 formatter={(value: number) => formatCurrency(value, showMoney)}
               />
-              <Area type="monotone" dataKey="balance" name="Saldo" stroke="#00E08A" fill="url(#balanceGrad)" strokeWidth={1.5} dot={{ fill: "#00E08A", r: 3, strokeWidth: 0 }} activeDot={{ r: 5, fill: "#00E08A", stroke: "#07090C", strokeWidth: 2 }} />
-            </AreaChart>
+              <Line type="monotone" dataKey="equity" name="Patrimônio" stroke="#00E08A" strokeWidth={1.5} dot={{ fill: "#00E08A", r: 3, strokeWidth: 0 }} activeDot={{ r: 5, fill: "#00E08A", stroke: "#07090C", strokeWidth: 2 }} />
+            </LineChart>
           </ResponsiveContainer>
         </div>
 

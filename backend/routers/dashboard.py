@@ -7,7 +7,10 @@ from auth import get_current_user
 from models.user import User
 from models.transaction import Transaction, TransactionType
 from models.category import Category
-from models.investment import Investment
+from models.investment import Investment, InvestmentType
+from models.investment_deposit import InvestmentDeposit
+from models.investment_redemption import InvestmentRedemption
+from models.stock_transaction import StockTransaction
 from services.bcb import get_selic_cdi_rates
 from routers.investments import enrich_investments as _enrich_investments
 import logging
@@ -303,7 +306,7 @@ async def dashboard_summary(
                 bucket = "income_in" if row.type == TransactionType.INCOME else "expense_out"
                 investment_trend[key][bucket] = float(row.total)
 
-    # === cumulative_balance_trend: running balance per period using ALL transactions ===
+    # === equity_trend: cash + invested-at-cost per period (CRYPTO not tracked, contributes 0) ===
     opening_balance = db.query(
         func.coalesce(
             func.sum(
@@ -355,11 +358,66 @@ async def dashboard_summary(
             delta = float(row.total) if row.type == TransactionType.INCOME else -float(row.total)
             all_periods[key] = all_periods.get(key, 0.0) + delta
 
-    cumulative_balance_trend = []
-    running = float(opening_balance)
+    # Load investment events to compute invested-at-cost per period
+    rf_deposits = db.query(InvestmentDeposit.deposit_date, InvestmentDeposit.amount).join(
+        Investment, InvestmentDeposit.investment_id == Investment.id
+    ).filter(
+        Investment.user_id == uid,
+        Investment.type == InvestmentType.RENDA_FIXA,
+    ).all()
+    rf_redemptions = db.query(InvestmentRedemption.redemption_date, InvestmentRedemption.amount).join(
+        Investment, InvestmentRedemption.investment_id == Investment.id
+    ).filter(
+        Investment.user_id == uid,
+        Investment.type == InvestmentType.RENDA_FIXA,
+    ).all()
+    stock_events = db.query(
+        StockTransaction.investment_id,
+        StockTransaction.type,
+        StockTransaction.quantity,
+        StockTransaction.price_per_share,
+        StockTransaction.date,
+    ).join(Investment, StockTransaction.investment_id == Investment.id).filter(
+        Investment.user_id == uid,
+        Investment.type.in_([InvestmentType.FII, InvestmentType.ACAO_BR, InvestmentType.ACAO_GLOBAL]),
+    ).order_by(StockTransaction.date).all()
+
+    stock_by_inv: dict[int, list] = {}
+    for tx in stock_events:
+        stock_by_inv.setdefault(tx.investment_id, []).append(tx)
+
+    def invested_at(period_end: date) -> float:
+        rf = (
+            sum(d.amount for d in rf_deposits if d.deposit_date <= period_end)
+            - sum(r.amount for r in rf_redemptions if r.redemption_date <= period_end)
+        )
+        stock_total = 0.0
+        for txs in stock_by_inv.values():
+            qty, avg = 0.0, 0.0
+            for tx in txs:
+                if tx.date > period_end:
+                    break
+                if tx.type == "COMPRA":
+                    total_cost = qty * avg + tx.quantity * tx.price_per_share
+                    qty += tx.quantity
+                    avg = total_cost / qty if qty > 0 else 0.0
+                else:
+                    qty = max(qty - tx.quantity, 0.0)
+            stock_total += qty * avg
+        return float(rf) + stock_total
+
+    equity_trend = []
+    running_cash = float(opening_balance)
     for key in sorted(all_periods.keys()):
-        running += all_periods[key]
-        cumulative_balance_trend.append({"month": key, "balance": running})
+        running_cash += all_periods[key]
+        if granularity == "day":
+            period_end = date.fromisoformat(key)
+        else:
+            y, m = map(int, key.split("-"))
+            period_end = (date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1)) - timedelta(days=1)
+        if period_end > range_end:
+            period_end = range_end
+        equity_trend.append({"month": key, "equity": running_cash + invested_at(period_end)})
 
     # === last_30d_expense_by_category: dashboard pie (excludes flagged) ===
     last_30d_start = today - timedelta(days=30)
@@ -412,7 +470,7 @@ async def dashboard_summary(
         "expense_by_category": expense_by_category,
         "trend_by_category": trend_by_category,
         "investment_trend": investment_trend,
-        "cumulative_balance_trend": cumulative_balance_trend,
+        "equity_trend": equity_trend,
         "last_30d_expense_by_category": last_30d_expense_by_category,
         "total_invested_net_period": total_invested_net_period,
         "recent_transactions": recent_list,
