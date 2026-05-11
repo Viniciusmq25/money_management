@@ -53,14 +53,10 @@ export default function ReportsPage() {
 
   const lineData = useMemo(() => {
     if (!data) return [];
-    let cumulative = 0;
-    return data.monthly_trend.map((m: any) => {
-      cumulative += m.income - m.expense;
-      return {
-        name: isDaily ? formatDayShort(m.month) : formatMonth(m.month),
-        patrimonio: cumulative + (data.total_invested || 0),
-      };
-    });
+    return (data.equity_trend || []).map((m: any) => ({
+      name: isDaily ? formatDayShort(m.month) : formatMonth(m.month),
+      patrimonio: m.equity,
+    }));
   }, [data, isDaily]);
 
   const stats = useMemo(() => {
