@@ -20,7 +20,7 @@ export default function BottomNav({ onMenuOpen, onAddTransaction }: BottomNavPro
       {/* Floating center button — positioned relative to the fixed nav */}
       <button
         onClick={onAddTransaction}
-        className="absolute -top-5 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-accent hover:bg-accent-hover text-primary flex items-center justify-center shadow-lg shadow-accent/30 transition cursor-pointer z-10"
+        className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-accent hover:bg-accent-hover text-primary flex items-center justify-center shadow-lg shadow-accent/30 transition cursor-pointer z-10"
       >
         <Plus className="w-5 h-5" strokeWidth={2.5} />
       </button>
