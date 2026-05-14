@@ -65,7 +65,7 @@ export default function Layout() {
         </main>
       </div>
 
-      <BottomNav onMenuOpen={() => setSidebarOpen(true)} />
+      <BottomNav onMenuOpen={() => setSidebarOpen(true)} onAddTransaction={() => setShowAddModal(true)} />
 
       <AddTransactionModal
         isOpen={showAddModal}

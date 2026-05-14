@@ -58,7 +58,8 @@ export default function MonthlySummaryTable({
                   className="border-b border-border last:border-0 hover:bg-surface-hover transition"
                 >
                   <td className="px-5 py-3.5 text-sm text-white font-medium">
-                    {row.fullName}
+                    <span className="sm:hidden">{row.name}</span>
+                    <span className="hidden sm:inline">{row.fullName}</span>
                   </td>
                   <td className="px-5 py-3.5 text-sm text-success text-right">
                     {formatCurrency(row.income, showMoney)}
