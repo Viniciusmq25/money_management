@@ -6,81 +6,60 @@ interface BottomNavProps {
   onAddTransaction: () => void;
 }
 
-const leftNav = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard", end: true },
-  { to: "/investments", icon: TrendingUp, label: "Investimentos", end: false },
-];
-
-const rightNav = [
-  { to: "/reports", icon: BarChart3, label: "Relatórios", end: false },
-];
-
 export default function BottomNav({ onMenuOpen, onAddTransaction }: BottomNavProps) {
+  const linkClass = (isActive: boolean) =>
+    `flex-1 flex justify-center items-center py-3 transition-all ${
+      isActive ? "text-accent" : "text-muted hover:text-white"
+    }`;
+
+  const iconWrap = (isActive: boolean) =>
+    `p-2 rounded-lg ${isActive ? "bg-accent/15" : ""}`;
+
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-primary-light border-t border-border overflow-visible">
-      <div className="flex items-center h-16 px-1 relative">
-        {leftNav.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-1 flex-1 py-2 rounded-xl transition-all ${
-                isActive ? "text-accent" : "text-muted hover:text-white"
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className={`p-1.5 rounded-xl transition-all ${isActive ? "bg-accent/15" : ""}`}>
-                  <item.icon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-medium">{item.label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-primary-light border-t border-border">
+      {/* Floating center button — positioned relative to the fixed nav */}
+      <button
+        onClick={onAddTransaction}
+        className="absolute -top-5 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-accent hover:bg-accent-hover text-primary flex items-center justify-center shadow-lg shadow-accent/30 transition cursor-pointer z-10"
+      >
+        <Plus className="w-5 h-5" strokeWidth={2.5} />
+      </button>
 
-        {/* Center elevated action button */}
-        <div className="flex-1 flex justify-center">
-          <button
-            onClick={onAddTransaction}
-            className="absolute -top-7 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full bg-accent hover:bg-accent-hover text-primary flex items-center justify-center shadow-lg shadow-accent/30 transition cursor-pointer"
-          >
-            <Plus className="w-6 h-6" strokeWidth={2.5} />
-          </button>
-        </div>
+      <div className="flex items-center h-14 px-2">
+        <NavLink to="/" end className={({ isActive }) => linkClass(isActive)}>
+          {({ isActive }) => (
+            <div className={iconWrap(isActive)}>
+              <LayoutDashboard className="w-5 h-5" />
+            </div>
+          )}
+        </NavLink>
 
-        {rightNav.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-1 flex-1 py-2 rounded-xl transition-all ${
-                isActive ? "text-accent" : "text-muted hover:text-white"
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className={`p-1.5 rounded-xl transition-all ${isActive ? "bg-accent/15" : ""}`}>
-                  <item.icon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-medium">{item.label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
+        <NavLink to="/investments" className={({ isActive }) => linkClass(isActive)}>
+          {({ isActive }) => (
+            <div className={iconWrap(isActive)}>
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          )}
+        </NavLink>
+
+        {/* Spacer reserved for the floating center button */}
+        <div className="flex-1" />
+
+        <NavLink to="/reports" className={({ isActive }) => linkClass(isActive)}>
+          {({ isActive }) => (
+            <div className={iconWrap(isActive)}>
+              <BarChart3 className="w-5 h-5" />
+            </div>
+          )}
+        </NavLink>
 
         <button
           onClick={onMenuOpen}
-          className="flex flex-col items-center gap-1 flex-1 py-2 rounded-xl text-muted hover:text-white transition-all cursor-pointer"
+          className="flex-1 flex justify-center items-center py-3 text-muted hover:text-white transition cursor-pointer"
         >
-          <div className="p-1.5 rounded-xl">
+          <div className="p-2 rounded-lg">
             <Menu className="w-5 h-5" />
           </div>
-          <span className="text-xs font-medium">Menu</span>
         </button>
       </div>
     </nav>
