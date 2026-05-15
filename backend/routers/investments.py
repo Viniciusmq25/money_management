@@ -149,18 +149,20 @@ def _build_enriched(inv: Investment, prices: dict, rates: dict | None) -> dict:
 
     if data["current_value"] is not None:
         if inv.type in STOCK_TYPES:
-            unrealized = data["current_value"] - (qty * avg)
-            data["unrealized_profit_loss"] = unrealized
-            total_pl = realized + unrealized
-            data["profit_loss"] = total_pl
+            # Only compute PL when we have a recorded cost basis. Without it (no stock_txs),
+            # current_value - 0 would be reported as pure profit ("phantom profit").
             if cost_basis > 0:
+                unrealized = data["current_value"] - (qty * avg)
+                data["unrealized_profit_loss"] = unrealized
+                total_pl = realized + unrealized
+                data["profit_loss"] = total_pl
                 data["profit_loss_pct"] = (total_pl / cost_basis) * 100
         else:
-            # RENDA_FIXA / CRYPTO: use total_invested as cost basis
-            if data["total_invested"]:
+            # RENDA_FIXA / CRYPTO: use total_invested as cost basis.
+            # When total_invested == 0 (airdrop, transfer without buy history), leave PL as None.
+            if data["total_invested"] and data["total_invested"] > 0:
                 data["profit_loss"] = data["current_value"] - data["total_invested"]
-                if data["total_invested"] > 0:
-                    data["profit_loss_pct"] = (data["profit_loss"] / data["total_invested"]) * 100
+                data["profit_loss_pct"] = (data["profit_loss"] / data["total_invested"]) * 100
     elif inv.type in STOCK_TYPES and realized != 0:
         # fully closed position: no market price but has realized gain/loss
         data["unrealized_profit_loss"] = 0.0
@@ -317,9 +319,14 @@ async def investment_summary(
         t = e["type"].value if hasattr(e["type"], "value") else e["type"]
         if t not in by_type:
             by_type[t] = {"invested": 0, "current": 0, "count": 0}
+        by_type[t]["count"] += 1
+        # Skip currency aggregates for positions with unknown cost basis
+        # (e.g., airdrops, transfers without buy history) — they would otherwise inflate totals.
+        has_known_cost = (e.get("total_invested") or 0) > 0 or e.get("profit_loss") is not None
+        if not has_known_cost:
+            continue
         by_type[t]["invested"] += e["total_invested"] or 0
         by_type[t]["current"] += e["current_value"] or e["total_invested"] or 0
-        by_type[t]["count"] += 1
         total_invested += e["total_invested"] or 0
         total_current += e["current_value"] or e["total_invested"] or 0
 

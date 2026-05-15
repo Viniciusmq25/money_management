@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 from models.api_config import APIConfig
 from models.investment import Investment, InvestmentType
+from services.bcb import get_usd_brl_rate
 
 BINANCE_BASE = "https://api.binance.com"
 
@@ -153,10 +154,15 @@ async def sync_binance_investments(db: Session, user_id: int) -> dict:
     # Fetch current prices to calculate BRL values
     prices = await get_all_tickers(api_key, api_secret)
     
-    # Get USDT/BRL rate (approximate via BTCUSDT and BTCBRL if available)
-    usdt_brl = 5.0  # fallback
-    if "USDTBRL" in prices:
-        usdt_brl = prices["USDTBRL"]
+    # USDT/BRL rate: Binance ticker first, BCB PTAX as fallback. No hardcoded rate.
+    usdt_brl = prices.get("USDTBRL")
+    if not usdt_brl:
+        usdt_brl = await get_usd_brl_rate(db)
+    if not usdt_brl:
+        raise BinanceError(
+            "Não foi possível obter cotação USD/BRL (Binance USDTBRL e BCB PTAX indisponíveis). "
+            "Tente novamente em instantes."
+        )
     
     created = 0
     updated = 0

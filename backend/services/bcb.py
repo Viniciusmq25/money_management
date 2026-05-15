@@ -13,6 +13,7 @@ SELIC_DAILY = 11
 CDI_DAILY = 12
 SELIC_META = 432
 IPCA_MONTHLY = 433
+USD_BRL_DAILY = 1  # PTAX - Dólar comercial venda
 
 
 async def get_selic_cdi_rates(db: Session) -> dict:
@@ -112,6 +113,43 @@ def _upsert_rate_cache(db: Session, ticker: str, price: float, extra: dict):
             price=price,
             extra_data=extra,
         ))
+
+
+async def get_usd_brl_rate(db: Session) -> float | None:
+    """Fetch USD/BRL PTAX rate from BCB SGS series 1 with caching. Returns None if API and cache both fail."""
+    cached = db.query(QuoteCache).filter(
+        QuoteCache.ticker == "USDBRL",
+        QuoteCache.asset_type == "RATE",
+    ).first()
+
+    now = datetime.now(timezone.utc)
+
+    if cached and cached.fetched_at and cached.price:
+        age = (now - cached.fetched_at.replace(tzinfo=timezone.utc)).total_seconds()
+        if age < settings.CACHE_TTL_SELIC:
+            return cached.price
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(f"{BCB_BASE}.{USD_BRL_DAILY}/dados/ultimos/1?formato=json")
+            resp.raise_for_status()
+            data = resp.json()
+            if data:
+                rate = float(data[-1]["valor"])
+                _upsert_rate_cache(db, "USDBRL", rate, {})
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                return rate
+    except Exception:
+        pass
+
+    # Stale cache as last resort
+    if cached and cached.price:
+        return cached.price
+
+    return None
 
 
 async def get_selic_history(months: int = 12) -> list[dict]:
